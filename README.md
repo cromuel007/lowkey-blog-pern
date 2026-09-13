@@ -1165,12 +1165,6 @@ Possible future enhancements:
 
 ---
 
-# 📄 License
-
-This project is private unless otherwise specified.
-
----
-
 # 👨‍💻 Author
 
 **Cromuel**
@@ -1182,6 +1176,8 @@ Davao City, Philippines
 Portfolio:
 
 https://tubbylab.com/
+
+* [LinkedIn](https://www.linkedin.com/in/cromuel/)
 
 ---
 
