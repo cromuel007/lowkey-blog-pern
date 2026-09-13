@@ -1177,7 +1177,7 @@ Portfolio:
 
 https://tubbylab.com/
 
-* [LinkedIn](https://www.linkedin.com/in/cromuel/)
+[LinkedIn](https://www.linkedin.com/in/cromuel/)
 
 ---
 
