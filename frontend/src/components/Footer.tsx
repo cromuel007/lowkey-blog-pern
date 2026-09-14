@@ -15,7 +15,10 @@ export default function Footer() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            url: window.location.href,
+            url:
+              window.location.origin +
+              window.location.pathname +
+              window.location.search,
             referrer: document.referrer || null,
           }),
         });
@@ -34,7 +37,9 @@ export default function Footer() {
       try {
         const response = await fetch(
           `${API_URL}/api/pageviews?url=${encodeURIComponent(
-            window.location.href
+            window.location.origin +
+            window.location.pathname +
+            window.location.search
           )}`,
           {
             method: "GET",
