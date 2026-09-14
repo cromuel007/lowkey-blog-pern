@@ -1,10 +1,17 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 
 const API_URL = import.meta.env.VITE_API_URL2 || "http://localhost:3001";
 const REFRESH_INTERVAL = 10000;
 
 export default function Footer() {
+  const location = useLocation();
   const [visitorCount, setVisitorCount] = useState<number | null>(null);
+
+  const pageUrl =
+    window.location.origin +
+    location.pathname +
+    location.search;
 
   useEffect(() => {
     const recordPageView = async () => {
@@ -15,10 +22,7 @@ export default function Footer() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            url:
-              window.location.origin +
-              window.location.pathname +
-              window.location.search,
+            url: pageUrl,
             referrer: document.referrer || null,
           }),
         });
@@ -36,11 +40,7 @@ export default function Footer() {
     const refreshPageViews = async () => {
       try {
         const response = await fetch(
-          `${API_URL}/api/pageviews?url=${encodeURIComponent(
-            window.location.origin +
-            window.location.pathname +
-            window.location.search
-          )}`,
+          `${API_URL}/api/pageviews?url=${encodeURIComponent(pageUrl)}`,
           {
             method: "GET",
             cache: "no-store",
@@ -57,7 +57,7 @@ export default function Footer() {
       }
     };
 
-    // Record this page view once.
+    // Record this page view.
     recordPageView();
 
     // Refresh the displayed count every 10 seconds.
@@ -67,7 +67,7 @@ export default function Footer() {
     );
 
     return () => clearInterval(interval);
-  }, []);
+  }, [pageUrl]);
 
   return (
     <footer className="border-t border-line bg-white py-6">
@@ -99,4 +99,3 @@ export default function Footer() {
     </footer>
   );
 }
-
