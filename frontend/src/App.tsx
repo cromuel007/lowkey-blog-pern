@@ -31,6 +31,25 @@ function Layout({ children }: { children: React.ReactNode }) {
   const [isContactOpen, setIsContactOpen] = useState(false);
   const [showBackToTop, setShowBackToTop] = useState(false);
 
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowBackToTop(window.scrollY > 100);
+    };
+
+    window.addEventListener("scroll", handleScroll);
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+    };
+  }, []);
+
+  const handleBackToTop = () => {
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  };
+
   // Admin login has its own standalone UI.
   if (isAdminLogin) {
     return <>{children}</>;
@@ -45,25 +64,6 @@ function Layout({ children }: { children: React.ReactNode }) {
   if (isAdmin) {
     return <AdminLayout>{children}</AdminLayout>;
   }
-
-  useEffect(() => {
-    const handleScroll = () => {
-      setShowBackToTop(window.scrollY > 100);
-    };
-
-    window.addEventListener('scroll', handleScroll);
-
-    return () => {
-      window.removeEventListener('scroll', handleScroll);
-    };
-  }, []);
-
-  const handleBackToTop = () => {
-    window.scrollTo({
-      top: 0,
-      behavior: 'smooth',
-    });
-  };
 
   // Public pages use the public layout.
   return (

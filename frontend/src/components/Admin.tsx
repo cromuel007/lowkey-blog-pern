@@ -292,8 +292,16 @@ export function AdminLogin() {
                         disabled={loading}
                         className="btn-primary w-full disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                        {loading && `Signing in${loadingDots}`}
-                        {!loading && "Sign in"}
+                        {loading ? (
+                            <span className="relative inline-flex">
+                                <span>Signing in</span>
+                                <span className="w-[18px] text-left">
+                                    {loadingDots}
+                                </span>
+                            </span>
+                        ) : (
+                            "Sign in"
+                        )}
                     </button>
 
                     <div className="mt-6 border-t border-line pt-5 text-center">
