@@ -15,7 +15,7 @@ export default function Footer() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            url: window.location.origin,
+            url: window.location.href,
             referrer: document.referrer || null,
           }),
         });
@@ -34,7 +34,7 @@ export default function Footer() {
       try {
         const response = await fetch(
           `${API_URL}/api/pageviews?url=${encodeURIComponent(
-            window.location.origin
+            window.location.href
           )}`,
           {
             method: "GET",
@@ -72,7 +72,7 @@ export default function Footer() {
           <a
             href="https://tubbylab.com"
             rel="noopener noreferrer"
-            className="text-accent transition-colors foot-link"
+            className="foot-link"
           >
             Cromuel
           </a>{" "}

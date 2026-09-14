@@ -320,7 +320,7 @@ export function AdminLogin() {
                     <a
                         href="https://tubbylab.com"
                         rel="noopener noreferrer"
-                        className="text-accent transition-colors foot-link"
+                        className="foot-link"
                     >
                         Cromuel
                     </a>{" "}
