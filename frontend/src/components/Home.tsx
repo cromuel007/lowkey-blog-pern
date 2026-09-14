@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { api } from "../api";
 import type { Post } from "../types";
 import { getAsset } from "../utils/useAssets";
+import { useLoadingDots } from "../hooks/useLoadingDots";
 
 const REFRESH_INTERVAL = 60000;
 
@@ -11,7 +12,7 @@ export default function Home() {
     const [posts, setPosts] = useState<Post[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
-    const [loadingDots, setLoadingDots] = useState(".");
+    const loadingDots = useLoadingDots();
 
     const fetchPosts = async (showLoading = false) => {
         try {
@@ -46,16 +47,6 @@ export default function Home() {
         const interval = setInterval(() => {
             fetchPosts();
         }, REFRESH_INTERVAL);
-
-        return () => clearInterval(interval);
-    }, []);
-
-    useEffect(() => {
-        const interval = setInterval(() => {
-            setLoadingDots((dots) =>
-                dots.length === 3 ? "" : dots + "."
-            );
-        }, 400);
 
         return () => clearInterval(interval);
     }, []);

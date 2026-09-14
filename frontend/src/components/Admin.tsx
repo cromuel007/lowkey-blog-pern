@@ -31,6 +31,7 @@ import {
     AlertDialogTitle,
 } from "./AlertDialog";
 import { getAsset } from "../utils/useAssets";
+import { useLoadingDots } from "../hooks/useLoadingDots";
 
 export function AdminLayout({
     children,
@@ -75,11 +76,10 @@ export function AdminLayout({
                     <nav className="space-y-1.5">
                         <Link
                             to="/admin"
-                            className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${
-                                isDashboard
-                                    ? "bg-accent-soft text-accent"
-                                    : "text-slate hover:bg-surface-alt hover:text-ink"
-                            }`}
+                            className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${isDashboard
+                                ? "bg-accent-soft text-accent"
+                                : "text-slate hover:bg-surface-alt hover:text-ink"
+                                }`}
                         >
                             <LayoutDashboard className="h-4 w-4" />
                             Dashboard
@@ -87,11 +87,10 @@ export function AdminLayout({
 
                         <Link
                             to="/admin/posts"
-                            className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${
-                                isPosts
-                                    ? "bg-accent-soft text-accent"
-                                    : "text-slate hover:bg-surface-alt hover:text-ink"
-                            }`}
+                            className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${isPosts
+                                ? "bg-accent-soft text-accent"
+                                : "text-slate hover:bg-surface-alt hover:text-ink"
+                                }`}
                         >
                             <FileText className="h-4 w-4" />
                             Posts
@@ -145,11 +144,10 @@ export function AdminLayout({
                     <nav className="scrollbar-hide flex gap-2 overflow-x-auto border-t border-line px-4 py-2">
                         <Link
                             to="/admin"
-                            className={`flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
-                                isDashboard
-                                    ? "bg-accent-soft text-accent"
-                                    : "text-slate hover:bg-surface-alt hover:text-ink"
-                            }`}
+                            className={`flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${isDashboard
+                                ? "bg-accent-soft text-accent"
+                                : "text-slate hover:bg-surface-alt hover:text-ink"
+                                }`}
                         >
                             <LayoutDashboard className="h-4 w-4" />
                             Dashboard
@@ -157,11 +155,10 @@ export function AdminLayout({
 
                         <Link
                             to="/admin/posts"
-                            className={`flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
-                                isPosts
-                                    ? "bg-accent-soft text-accent"
-                                    : "text-slate hover:bg-surface-alt hover:text-ink"
-                            }`}
+                            className={`flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${isPosts
+                                ? "bg-accent-soft text-accent"
+                                : "text-slate hover:bg-surface-alt hover:text-ink"
+                                }`}
                         >
                             <FileText className="h-4 w-4" />
                             Posts
@@ -193,10 +190,13 @@ export function AdminLogin() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [error, setError] = useState("");
+    const [loading, setLoading] = useState(false);
+    const loadingDots = useLoadingDots();
 
     async function submit(e: React.FormEvent) {
         e.preventDefault();
         setError("");
+        setLoading(true);
 
         try {
             const { data } = await api.post("/api/auth/login", {
@@ -208,6 +208,8 @@ export function AdminLogin() {
             navigate("/admin");
         } catch {
             setError("Invalid email or password.");
+        } finally {
+            setLoading(false);
         }
     }
 
@@ -287,9 +289,11 @@ export function AdminLogin() {
 
                     <button
                         type="submit"
-                        className="btn-primary w-full"
+                        disabled={loading}
+                        className="btn-primary w-full disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                        Sign in
+                        {loading && `Signing in${loadingDots}`}
+                        {!loading && "Sign in"}
                     </button>
 
                     <div className="mt-6 border-t border-line pt-5 text-center">
@@ -475,7 +479,7 @@ export function Admin() {
                 </Link>
             </div>
 
-            {message && (
+            {/* {message && (
                 <div className="relative mb-6 rounded-xl border border-green-200 bg-green-50 px-4 py-3 pr-10 text-sm font-medium text-green-700">
                     {message}
 
@@ -488,7 +492,7 @@ export function Admin() {
                         <X className="h-4 w-4" />
                     </button>
                 </div>
-            )}
+            )} */}
 
             {posts.length === 0 ? (
                 <div className="rounded-2xl bg-white px-7 py-12 text-center shadow-sm">
@@ -527,11 +531,10 @@ export function Admin() {
                                         </h2>
 
                                         <span
-                                            className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                                                post.published
-                                                    ? "bg-green-50 text-success"
-                                                    : "bg-surface-alt text-muted"
-                                            }`}
+                                            className={`rounded-full px-2.5 py-1 text-xs font-semibold ${post.published
+                                                ? "bg-green-50 text-success"
+                                                : "bg-surface-alt text-muted"
+                                                }`}
                                         >
                                             {post.published
                                                 ? "Published"
@@ -550,7 +553,7 @@ export function Admin() {
                                         <span>
                                             {new Date(
                                                 post.publishedAt ||
-                                                    post.createdAt
+                                                post.createdAt
                                             ).toLocaleDateString()}
                                         </span>
 
@@ -635,6 +638,7 @@ export function AdminPostNew() {
     const [categories, setCategories] = useState<Category[]>([]);
     const [tags, setTags] = useState<Tag[]>([]);
     const [loading, setLoading] = useState(true);
+    const loadingDots = useLoadingDots();
 
     const token = localStorage.getItem("blog_token");
 
@@ -670,7 +674,10 @@ export function AdminPostNew() {
     if (!token || loading) {
         return (
             <p className="py-10 text-center text-slate">
-                Loading...
+                Loading
+                <span className="inline-block w-[18px] text-left">
+                    {loadingDots}
+                </span>
             </p>
         );
     }
@@ -720,6 +727,7 @@ export function AdminPostEdit() {
     const [tags, setTags] = useState<Tag[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
+    const loadingDots = useLoadingDots();
 
     const token = localStorage.getItem("blog_token");
 
@@ -778,7 +786,10 @@ export function AdminPostEdit() {
     if (!token || loading) {
         return (
             <p className="py-10 text-center text-slate">
-                Loading...
+                Loading
+                <span className="inline-block w-[18px] text-left">
+                    {loadingDots}
+                </span>
             </p>
         );
     }
@@ -867,6 +878,7 @@ function PostForm({
     const [saving, setSaving] = useState(false);
     const [uploadingImage, setUploadingImage] = useState(false);
     const [error, setError] = useState("");
+    const loadingDots = useLoadingDots();
 
     useEffect(() => {
         if (!post) {
@@ -954,7 +966,7 @@ function PostForm({
 
             setError(
                 error?.response?.data?.message ||
-                    "Could not upload cover image."
+                "Could not upload cover image."
             );
         } finally {
             setUploadingImage(false);
@@ -1017,9 +1029,9 @@ function PostForm({
 
             setError(
                 error?.response?.data?.message ||
-                    (post
-                        ? "Could not update the post."
-                        : "Could not create the post.")
+                (post
+                    ? "Could not update the post."
+                    : "Could not create the post.")
             );
         } finally {
             setSaving(false);
@@ -1166,7 +1178,7 @@ function PostForm({
                             />
 
                             {uploadingImage
-                                ? "Uploading..."
+                                ? `Uploading${loadingDots}`
                                 : "Choose image"}
                         </label>
 
@@ -1252,11 +1264,10 @@ function PostForm({
                         {tags.map((t) => (
                             <label
                                 key={t.id}
-                                className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
-                                    tagIds.includes(t.id)
-                                        ? "border-accent bg-accent-soft text-accent"
-                                        : "border-line bg-white text-slate hover:bg-surface-alt"
-                                }`}
+                                className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${tagIds.includes(t.id)
+                                    ? "border-accent bg-accent-soft text-accent"
+                                    : "border-line bg-white text-slate hover:bg-surface-alt"
+                                    }`}
                             >
                                 <input
                                     type="checkbox"
@@ -1267,14 +1278,14 @@ function PostForm({
                                         setTagIds(
                                             e.target.checked
                                                 ? [
-                                                      ...tagIds,
-                                                      t.id,
-                                                  ]
+                                                    ...tagIds,
+                                                    t.id,
+                                                ]
                                                 : tagIds.filter(
-                                                      (id) =>
-                                                          id !==
-                                                          t.id
-                                                  )
+                                                    (id) =>
+                                                        id !==
+                                                        t.id
+                                                )
                                         )
                                     }
                                     className="h-4 w-4 rounded border-line accent-accent"
@@ -1313,14 +1324,14 @@ function PostForm({
                 <button
                     type="submit"
                     disabled={saving || uploadingImage}
-                    className="btn-primary disabled:cursor-not-allowed disabled:opacity-60"
+                    className="btn-primary min-w-[140px] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                     {saving
                         ? post
-                            ? "Updating..."
-                            : "Creating..."
+                            ? `Updating${loadingDots}`
+                            : `Creating${loadingDots}`
                         : uploadingImage
-                            ? "Uploading image..."
+                            ? `Uploading${loadingDots}`
                             : post
                                 ? "Update Post"
                                 : "Create Post"}

@@ -5,6 +5,7 @@ import DOMPurify from "dompurify";
 import { api } from "../api";
 import type { Post } from "../types";
 import { getAsset } from "../utils/useAssets";
+import { useLoadingDots } from "../hooks/useLoadingDots";
 
 export default function PostPage() {
     const { slug } = useParams();
@@ -12,7 +13,7 @@ export default function PostPage() {
     const [post, setPost] = useState<Post | null>(null);
     const [posts, setPosts] = useState<Post[]>([]);
     const [error, setError] = useState("");
-    const [loadingDots, setLoadingDots] = useState(".");
+    const loadingDots = useLoadingDots();
 
     useEffect(() => {
         Promise.all([
@@ -43,17 +44,6 @@ export default function PostPage() {
             })
             .catch(() => setError("Post not found."));
     }, [slug]);
-
-
-    useEffect(() => {
-        const interval = setInterval(() => {
-            setLoadingDots((dots) =>
-                dots.length === 3 ? "" : dots + "."
-            );
-        }, 400);
-
-        return () => clearInterval(interval);
-    }, []);
 
     if (error) {
         return (
