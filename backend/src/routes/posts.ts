@@ -9,6 +9,7 @@ import {
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/auth.js";
 import { s3, STORAGE_BUCKET } from "../lib/s3.js";
+import { Prisma } from "@prisma/client";
 
 const router = Router();
 
@@ -222,38 +223,39 @@ router.put("/:id", requireAuth, async (req, res) => {
       !!newCoverImageUrl &&
       oldCoverImageUrl !== newCoverImageUrl;
 
-    const post = await prisma.$transaction(async (tx) => {
-      await tx.postTag.deleteMany({
-        where: {
-          postId: id,
-        },
-      });
-
-      return tx.post.update({
-        where: {
-          id,
-        },
-        data: {
-          ...data,
-          publishedAt: data.published
-            ? (existing.publishedAt ?? new Date())
-            : null,
-          tags: {
-            create: tagIds.map((tagId) => ({
-              tagId,
-            })),
+    const post = await prisma.$transaction(
+      async (tx: Prisma.TransactionClient) => {
+        await tx.postTag.deleteMany({
+          where: {
+            postId: id,
           },
-        },
-        include: {
-          category: true,
-          tags: {
-            include: {
-              tag: true,
+        });
+
+        return tx.post.update({
+          where: {
+            id,
+          },
+          data: {
+            ...data,
+            publishedAt: data.published
+              ? (existing.publishedAt ?? new Date())
+              : null,
+            tags: {
+              create: tagIds.map((tagId) => ({
+                tagId,
+              })),
             },
           },
-        },
+          include: {
+            category: true,
+            tags: {
+              include: {
+                tag: true,
+              },
+            },
+          },
+        });
       });
-    });
 
     // Delete old cover image if it was removed or replaced.
     if (imageWasRemoved || imageWasChanged) {
