@@ -37,6 +37,7 @@ const postInput = z.object({
   excerpt: z.string().max(500).optional().nullable(),
   content: z.string().min(1),
   published: z.boolean().default(false),
+  publishedAt: z.iso.datetime().optional().nullable(),
   seoTitle: z.string().max(200).optional().nullable(),
   seoDescription: z.string().max(320).optional().nullable(),
   coverImageUrl: z.url().optional().nullable(),
@@ -232,13 +233,19 @@ router.post("/", requireAuth, async (req, res) => {
     });
   }
 
-  const { tagIds, ...data } = parsed.data;
+  const {
+    tagIds,
+    publishedAt,
+    ...data
+  } = parsed.data;
 
   try {
     const post = await prisma.post.create({
       data: {
         ...data,
-        publishedAt: data.published ? new Date() : null,
+        publishedAt: publishedAt
+          ? new Date(publishedAt)
+          : null,
         tags: {
           create: tagIds.map((tagId) => ({
             tagId,
@@ -276,7 +283,12 @@ router.put("/:id", requireAuth, async (req, res) => {
   }
 
   const id = Number(req.params.id);
-  const { tagIds, ...data } = parsed.data;
+
+  const {
+    tagIds,
+    publishedAt,
+    ...data
+  } = parsed.data;
 
   try {
     const existing = await prisma.post.findUnique({
@@ -321,9 +333,9 @@ router.put("/:id", requireAuth, async (req, res) => {
           },
           data: {
             ...data,
-            publishedAt: data.published
-              ? (existing.publishedAt ?? new Date())
-              : null,
+            publishedAt: publishedAt
+              ? new Date(publishedAt)
+              : existing.publishedAt,
             tags: {
               create: tagIds.map((tagId) => ({
                 tagId,
@@ -351,7 +363,8 @@ router.put("/:id", requireAuth, async (req, res) => {
             `${supabaseUrl}/storage/v1/object/public/${STORAGE_BUCKET}/`;
 
           if (oldCoverImageUrl.startsWith(prefix)) {
-            const fileName = oldCoverImageUrl.slice(prefix.length);
+            const fileName =
+              oldCoverImageUrl.slice(prefix.length);
 
             if (fileName) {
               await s3.send(

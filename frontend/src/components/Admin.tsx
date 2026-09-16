@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
     ArrowLeft,
     ArrowRight,
@@ -729,9 +729,16 @@ export function Admin() {
                             disabled={deleting}
                             className="bg-danger text-white hover:bg-danger/90"
                         >
-                            {deleting
-                                ? `Deleting${loadingDots}`
-                                : "Delete Post"}
+                            {deleting ? (
+                                <span className="inline-flex items-center">
+                                    <span>Deleting</span>
+                                    <span className="w-[18px] text-left">
+                                        {loadingDots}
+                                    </span>
+                                </span>
+                            ) : (
+                                "Delete Post"
+                            )}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
@@ -969,6 +976,7 @@ function PostForm({
     const [excerpt, setExcerpt] = useState("");
     const [content, setContent] = useState("");
     const [published, setPublished] = useState(false);
+    const [publishedAt, setPublishedAt] = useState("");
     const [categoryId, setCategoryId] = useState("");
     const [coverImageUrl, setCoverImageUrl] = useState("");
     const [seoTitle, setSeoTitle] = useState("");
@@ -977,6 +985,9 @@ function PostForm({
     const [saving, setSaving] = useState(false);
     const [uploadingImage, setUploadingImage] = useState(false);
     const [error, setError] = useState("");
+
+    const publishedAtRef = useRef<HTMLInputElement>(null);
+
     const loadingDots = useLoadingDots();
 
     useEffect(() => {
@@ -986,6 +997,7 @@ function PostForm({
             setExcerpt("");
             setContent("");
             setPublished(false);
+            setPublishedAt("");
             setCategoryId("");
             setCoverImageUrl("");
             setSeoTitle("");
@@ -999,6 +1011,15 @@ function PostForm({
         setExcerpt(post.excerpt || "");
         setContent(post.content);
         setPublished(post.published);
+
+        setPublishedAt(
+            post.publishedAt
+                ? new Date(post.publishedAt)
+                    .toISOString()
+                    .slice(0, 16)
+                : ""
+        );
+
         setCategoryId(
             post.category?.id ? String(post.category.id) : ""
         );
@@ -1096,7 +1117,12 @@ function PostForm({
             excerpt: excerpt || null,
             content,
             published,
-            categoryId: categoryId ? Number(categoryId) : null,
+            publishedAt: publishedAt
+                ? new Date(publishedAt).toISOString()
+                : null,
+            categoryId: categoryId
+                ? Number(categoryId)
+                : null,
             coverImageUrl: coverImageUrl || null,
             seoTitle: seoTitle || null,
             seoDescription: seoDescription || null,
@@ -1236,7 +1262,7 @@ function PostForm({
                     Publishing
                 </p>
 
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="mb-5">
                     <label className={labelClass}>
                         Category
 
@@ -1259,7 +1285,9 @@ function PostForm({
                             ))}
                         </select>
                     </label>
+                </div>
 
+                <div className="mb-5">
                     <div className={labelClass}>
                         <span className="block">
                             Cover image
@@ -1270,15 +1298,21 @@ function PostForm({
                                 type="file"
                                 accept="image/*"
                                 onChange={uploadCoverImage}
-                                disabled={
-                                    uploadingImage || saving
-                                }
+                                disabled={uploadingImage || saving}
                                 className="hidden"
                             />
 
-                            {uploadingImage
-                                ? `Uploading${loadingDots}`
-                                : "Choose image"}
+                            {uploadingImage ? (
+                                <span className="inline-flex items-center">
+                                    <span>Uploading</span>
+
+                                    <span className="w-[18px] text-left">
+                                        {loadingDots}
+                                    </span>
+                                </span>
+                            ) : (
+                                "Choose image"
+                            )}
                         </label>
 
                         <p className="mt-2 text-xs font-normal text-muted">
@@ -1291,17 +1325,14 @@ function PostForm({
                                     <img
                                         src={coverImageUrl}
                                         alt="Cover preview"
-                                        className="h-40 w-full object-cover"
+                                        className="h-[310px] w-full object-cover"
                                     />
 
                                     <button
                                         type="button"
-                                        onClick={
-                                            removeCoverImage
-                                        }
+                                        onClick={removeCoverImage}
                                         disabled={
-                                            uploadingImage ||
-                                            saving
+                                            uploadingImage || saving
                                         }
                                         className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-lg bg-black/70 px-2.5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-black disabled:opacity-50"
                                     >
@@ -1309,10 +1340,6 @@ function PostForm({
                                         Remove
                                     </button>
                                 </div>
-
-                                <p className="mt-2 truncate text-xs font-normal text-muted">
-                                    {coverImageUrl}
-                                </p>
                             </div>
                         )}
                     </div>
@@ -1364,8 +1391,8 @@ function PostForm({
                             <label
                                 key={t.id}
                                 className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${tagIds.includes(t.id)
-                                    ? "border-accent bg-accent-soft text-accent"
-                                    : "border-line bg-white text-slate hover:bg-surface-alt"
+                                        ? "border-accent bg-accent-soft text-accent"
+                                        : "border-line bg-white text-slate hover:bg-surface-alt"
                                     }`}
                             >
                                 <input
@@ -1397,6 +1424,30 @@ function PostForm({
                 )}
             </div>
 
+            <div className="mb-8">
+                <label className={labelClass}>
+                    Published Date
+
+                    <input
+                        ref={publishedAtRef}
+                        type="datetime-local"
+                        value={publishedAt}
+                        onChange={(e) =>
+                            setPublishedAt(e.target.value)
+                        }
+                        onClick={(e) => {
+                            e.currentTarget.showPicker?.();
+                        }}
+                        className={inputClass}
+                    />
+
+                    <span className="mt-2 block text-xs font-normal text-muted">
+                        The date and time this post is considered
+                        published.
+                    </span>
+                </label>
+            </div>
+
             <label className="mb-7 flex cursor-pointer items-center gap-3 rounded-xl border border-line bg-surface px-4 py-4 text-sm font-semibold text-ink transition-colors hover:bg-surface-alt">
                 <input
                     type="checkbox"
@@ -1425,15 +1476,29 @@ function PostForm({
                     disabled={saving || uploadingImage}
                     className="btn-primary min-w-[140px] disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                    {saving
-                        ? post
-                            ? `Updating${loadingDots}`
-                            : `Creating${loadingDots}`
-                        : uploadingImage
-                            ? `Uploading${loadingDots}`
-                            : post
-                                ? "Update Post"
-                                : "Create Post"}
+                    {saving ? (
+                        <span className="inline-flex min-w-[82px] items-center justify-start">
+                            <span>
+                                {post ? "Updating" : "Creating"}
+                            </span>
+
+                            <span className="w-[18px] text-left">
+                                {loadingDots}
+                            </span>
+                        </span>
+                    ) : uploadingImage ? (
+                        <span className="inline-flex min-w-[82px] items-center justify-start">
+                            <span>Uploading</span>
+
+                            <span className="w-[18px] text-left">
+                                {loadingDots}
+                            </span>
+                        </span>
+                    ) : post ? (
+                        "Update Post"
+                    ) : (
+                        "Create Post"
+                    )}
                 </button>
 
                 <button
