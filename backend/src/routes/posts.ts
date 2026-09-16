@@ -62,16 +62,134 @@ router.get("/", async (req, res) => {
     100
   );
 
-  const where = publishedOnly
-    ? { published: true }
-    : undefined;
+  const search =
+    typeof req.query.search === "string"
+      ? req.query.search.trim()
+      : "";
+
+  const sortByValue = req.query.sortBy as string;
+
+  const sortOrder =
+    req.query.sortOrder === "asc" ? "asc" : "desc";
+
+  const allowedSorts = [
+    "title",
+    "category",
+    "published",
+    "publishedAt",
+  ] as const;
+
+  type SortBy = (typeof allowedSorts)[number];
+
+  const sortBy: SortBy = allowedSorts.includes(
+    sortByValue as SortBy
+  )
+    ? (sortByValue as SortBy)
+    : "publishedAt";
+
+  const where = {
+    ...(publishedOnly
+      ? {
+        published: true,
+      }
+      : {}),
+    ...(search
+      ? {
+        OR: [
+          {
+            title: {
+              contains: search,
+              mode: "insensitive" as const,
+            },
+          },
+          {
+            slug: {
+              contains: search,
+              mode: "insensitive" as const,
+            },
+          },
+          {
+            category: {
+              name: {
+                contains: search,
+                mode: "insensitive" as const,
+              },
+            },
+          },
+        ],
+      }
+      : {}),
+  };
+
+  let orderBy:
+    | Prisma.PostOrderByWithRelationInput
+    | Prisma.PostOrderByWithRelationInput[];
+
+  switch (sortBy) {
+    case "title":
+      orderBy = [
+        {
+          title: sortOrder,
+        },
+        {
+          id: "desc",
+        },
+      ];
+      break;
+
+    case "category":
+      orderBy = [
+        {
+          category: {
+            name: sortOrder,
+          },
+        },
+        {
+          id: "desc",
+        },
+      ];
+      break;
+
+    case "published":
+      orderBy = [
+        {
+          published: sortOrder,
+        },
+        {
+          id: "desc",
+        },
+      ];
+      break;
+
+    case "publishedAt":
+    default:
+      orderBy = [
+        {
+          publishedAt: {
+            sort: sortOrder,
+            nulls: "last",
+          },
+        },
+        {
+          createdAt: "desc",
+        },
+        {
+          id: "desc",
+        },
+      ];
+      break;
+  }
 
   const [posts, total] = await Promise.all([
     prisma.post.findMany({
       where,
-      orderBy: { createdAt: "desc" },
-      skip: isAdmin ? (page - 1) * pageSize : undefined,
-      take: isAdmin ? pageSize : undefined,
+      orderBy,
+      skip: isAdmin
+        ? (page - 1) * pageSize
+        : undefined,
+      take: isAdmin
+        ? pageSize
+        : undefined,
       include: {
         category: true,
         tags: {
@@ -96,7 +214,10 @@ router.get("/", async (req, res) => {
     total,
     page,
     pageSize,
-    totalPages: Math.max(1, Math.ceil(total / pageSize)),
+    totalPages: Math.max(
+      1,
+      Math.ceil(total / pageSize)
+    ),
   });
 });
 
