@@ -1,7 +1,19 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowLeft, ArrowRight, Share2 } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import DOMPurify from "dompurify";
+import {
+    FacebookIcon,
+    FacebookShareButton,
+    LinkedinIcon,
+    LinkedinShareButton,
+    TelegramIcon,
+    TelegramShareButton,
+    TwitterIcon,
+    TwitterShareButton,
+    WhatsappIcon,
+    WhatsappShareButton,
+} from "react-share";
 import { api } from "../api";
 import type { Post } from "../types";
 import { getAsset } from "../utils/useAssets";
@@ -26,21 +38,65 @@ export default function PostPage() {
                 setPost(currentPost);
                 setPosts(postsResponse.data);
 
-                document.title =
+                const title =
                     currentPost.seoTitle || currentPost.title;
 
-                const meta = document.querySelector(
-                    'meta[name="description"]'
-                );
+                const description =
+                    currentPost.seoDescription ||
+                    currentPost.excerpt ||
+                    "";
 
-                if (meta) {
-                    meta.setAttribute(
-                        "content",
-                        currentPost.seoDescription ||
-                        currentPost.excerpt ||
-                        ""
+                const url =
+                    `https://blog.tubbylab.com/posts/${currentPost.slug}`;
+
+                const image =
+                    currentPost.coverImageUrl ||
+                    "https://blog.tubbylab.com/og-image.png";
+
+                document.title = title;
+
+                const setMeta = (
+                    attribute: "name" | "property",
+                    key: string,
+                    content: string
+                ) => {
+                    let meta = document.querySelector(
+                        `meta[${attribute}="${key}"]`
                     );
-                }
+
+                    if (!meta) {
+                        meta = document.createElement("meta");
+                        meta.setAttribute(attribute, key);
+                        document.head.appendChild(meta);
+                    }
+
+                    meta.setAttribute("content", content);
+                };
+
+                setMeta("name", "description", description);
+
+                setMeta("property", "og:title", title);
+                setMeta(
+                    "property",
+                    "og:description",
+                    description
+                );
+                setMeta("property", "og:url", url);
+                setMeta("property", "og:type", "article");
+                setMeta("property", "og:image", image);
+
+                setMeta(
+                    "name",
+                    "twitter:card",
+                    "summary_large_image"
+                );
+                setMeta("name", "twitter:title", title);
+                setMeta(
+                    "name",
+                    "twitter:description",
+                    description
+                );
+                setMeta("name", "twitter:image", image);
             })
             .catch(() => setError("Post not found."));
     }, [slug]);
@@ -72,9 +128,13 @@ export default function PostPage() {
         currentIndex > 0 ? posts[currentIndex - 1] : null;
 
     const nextPost =
-        currentIndex >= 0 && currentIndex < posts.length - 1
+        currentIndex >= 0 &&
+            currentIndex < posts.length - 1
             ? posts[currentIndex + 1]
             : null;
+
+    const shareUrl =
+        `https://blog.tubbylab.com/posts/${post.slug}`;
 
     return (
         <article className="mx-auto my-4 mb-4 max-w-[1080px] leading-[1.8] sm:mt-14 sm:mb-16">
@@ -189,6 +249,36 @@ export default function PostPage() {
                         }}
                     />
                 </div>
+            </div>
+
+            {/* Share */}
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-4 px-5 pt-5 -mb-5">
+                <div className="mr-2 inline-flex items-center gap-2 text-sm font-bold text-ink">
+                    <Share2 className="h-4 w-4" />
+                    Share
+                </div>
+
+                <FacebookShareButton
+                    url={shareUrl}
+                    title={post.title}
+                >
+                    <FacebookIcon size={32} round />
+                </FacebookShareButton>
+
+                <LinkedinShareButton
+                    url={shareUrl}
+                    title={post.title}
+                >
+                    <LinkedinIcon size={32} round />
+                </LinkedinShareButton>
+
+                <TwitterShareButton
+                    url={shareUrl}
+                    title={post.title}
+                >
+                    <TwitterIcon size={32} round />
+                </TwitterShareButton>
+                
             </div>
 
             {/* Previous / Next */}
