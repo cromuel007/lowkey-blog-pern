@@ -551,18 +551,10 @@ export function Admin() {
                         Create, edit and manage your blog posts.
                     </p>
                 </div>
-
-                <Link
-                    to="/admin/posts/new"
-                    className="btn-primary"
-                >
-                    <Plus className="h-4 w-4" />
-                    New Post
-                </Link>
             </div>
 
-            {/* Find */}
-            <div className="mb-4">
+            {/* Find + New Post */}
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="relative w-full sm:max-w-sm">
                     <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
 
@@ -577,6 +569,14 @@ export function Admin() {
                         className="w-full rounded-lg border border-line bg-white py-2.5 pl-9 pr-3 text-sm text-ink outline-none transition-colors placeholder:text-muted focus:border-accent"
                     />
                 </div>
+
+                <Link
+                    to="/admin/posts/new"
+                    className="btn-primary"
+                >
+                    <Plus className="h-4 w-4" />
+                    New Post
+                </Link>
             </div>
 
             {posts.length === 0 ? (
@@ -619,7 +619,7 @@ export function Admin() {
                         <table className="w-full min-w-[800px] text-left">
                             <thead className="border-b border-line bg-[#e2e7f0]">
                                 <tr>
-                                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wide text-muted">
+                                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wide">
                                         <button
                                             type="button"
                                             onClick={() =>
@@ -633,7 +633,7 @@ export function Admin() {
                                         </button>
                                     </th>
 
-                                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wide text-muted">
+                                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wide">
                                         <button
                                             type="button"
                                             onClick={() =>
@@ -647,7 +647,7 @@ export function Admin() {
                                         </button>
                                     </th>
 
-                                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wide text-muted">
+                                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wide">
                                         <button
                                             type="button"
                                             onClick={() =>
@@ -661,7 +661,7 @@ export function Admin() {
                                         </button>
                                     </th>
 
-                                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wide text-muted">
+                                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wide">
                                         <button
                                             type="button"
                                             onClick={() =>
@@ -675,7 +675,7 @@ export function Admin() {
                                         </button>
                                     </th>
 
-                                    <th className="px-6 py-4 text-center text-xs font-bold uppercase tracking-wide text-muted">
+                                    <th className="px-4 py-4 text-center text-xs font-bold tracking-wide">
                                         Actions
                                     </th>
                                 </tr>
@@ -688,7 +688,7 @@ export function Admin() {
                                         className="transition-colors hover:bg-surface/50"
                                     >
                                         <td className="px-6 py-4">
-                                            <div className="max-w-[350px]">
+                                            <div className="max-w-[550px]">
                                                 <p className="truncate font-semibold text-ink">
                                                     {post.title}
                                                 </p>
@@ -707,8 +707,8 @@ export function Admin() {
                                         <td className="px-6 py-4">
                                             <span
                                                 className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${post.published
-                                                        ? "bg-green-50 text-success"
-                                                        : "bg-surface-alt text-muted"
+                                                    ? "bg-green-50 text-success"
+                                                    : "bg-surface-alt text-muted"
                                                     }`}
                                             >
                                                 {post.published
@@ -724,8 +724,8 @@ export function Admin() {
                                             ).toLocaleDateString()}
                                         </td>
 
-                                        <td className="px-6 py-4">
-                                            <div className="flex justify-end gap-2">
+                                        <td className="px-4 py-4">
+                                            <div className="flex items-center justify-center gap-2">
                                                 <Link
                                                     to={`/admin/posts/${post.id}/edit`}
                                                     title="Edit post"
