@@ -121,9 +121,7 @@ router.get("/", async (req, res) => {
       : {}),
   };
 
-  let orderBy:
-    | Prisma.PostOrderByWithRelationInput
-    | Prisma.PostOrderByWithRelationInput[];
+  let orderBy: Prisma.PostFindManyArgs["orderBy"];
 
   switch (sortBy) {
     case "title":
