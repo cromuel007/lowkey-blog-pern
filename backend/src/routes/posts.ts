@@ -100,18 +100,66 @@ router.get("/", async (req, res) => {
 });
 
 router.get("/:slug", async (req, res) => {
-  const post = await prisma.post.findUnique({
-    where: {
-      slug: req.params.slug,
-    },
-    include: {
-      category: true,
-      tags: {
-        include: {
-          tag: true,
-        },
+  const value = req.params.slug;
+  const id = Number(value);
+
+  const include = {
+    category: true,
+    tags: {
+      include: {
+        tag: true,
       },
     },
+  };
+
+  // Numeric values are treated as post IDs for authenticated admin requests.
+  if (Number.isInteger(id) && id > 0) {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader?.startsWith("Bearer ")) {
+      return res.status(401).json({
+        message: "Unauthorized.",
+      });
+    }
+
+    try {
+      // Reuse the same authentication middleware.
+      await new Promise<void>((resolve, reject) => {
+        requireAuth(req, res, (error) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+
+          resolve();
+        });
+      });
+    } catch {
+      return;
+    }
+
+    const post = await prisma.post.findUnique({
+      where: {
+        id,
+      },
+      include,
+    });
+
+    if (!post) {
+      return res.status(404).json({
+        message: "Post not found.",
+      });
+    }
+
+    return res.json(post);
+  }
+
+  // Normal public post lookup by slug.
+  const post = await prisma.post.findUnique({
+    where: {
+      slug: value,
+    },
+    include,
   });
 
   if (!post || !post.published) {
@@ -291,9 +339,9 @@ router.put("/:id", requireAuth, async (req, res) => {
             },
           },
         });
-      });
+      }
+    );
 
-    // Delete old cover image if it was removed or replaced.
     if (imageWasRemoved || imageWasChanged) {
       try {
         const supabaseUrl = process.env.SUPABASE_URL;
@@ -359,7 +407,6 @@ router.delete("/:id", requireAuth, async (req, res) => {
       });
     }
 
-    // Delete cover image from Supabase Storage.
     if (post.coverImageUrl) {
       try {
         const supabaseUrl = process.env.SUPABASE_URL;
@@ -390,7 +437,6 @@ router.delete("/:id", requireAuth, async (req, res) => {
       }
     }
 
-    // Delete post from database.
     await prisma.post.delete({
       where: {
         id,
