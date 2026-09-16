@@ -45,22 +45,58 @@ const postInput = z.object({
 });
 
 router.get("/", async (req, res) => {
-  const publishedOnly = req.query.admin !== "true";
+  const isAdmin = req.query.admin === "true";
+  const publishedOnly = !isAdmin;
 
-  const posts = await prisma.post.findMany({
-    where: publishedOnly ? { published: true } : undefined,
-    orderBy: { createdAt: "desc" },
-    include: {
-      category: true,
-      tags: {
-        include: {
-          tag: true,
+  const page = Math.max(
+    Number.parseInt(req.query.page as string, 10) || 1,
+    1
+  );
+
+  const pageSize = Math.min(
+    Math.max(
+      Number.parseInt(req.query.pageSize as string, 10) || 10,
+      1
+    ),
+    100
+  );
+
+  const where = publishedOnly
+    ? { published: true }
+    : undefined;
+
+  const [posts, total] = await Promise.all([
+    prisma.post.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip: isAdmin ? (page - 1) * pageSize : undefined,
+      take: isAdmin ? pageSize : undefined,
+      include: {
+        category: true,
+        tags: {
+          include: {
+            tag: true,
+          },
         },
       },
-    },
-  });
+    }),
 
-  res.json(posts);
+    isAdmin
+      ? prisma.post.count({ where })
+      : Promise.resolve(0),
+  ]);
+
+  if (!isAdmin) {
+    return res.json(posts);
+  }
+
+  res.json({
+    posts,
+    total,
+    page,
+    pageSize,
+    totalPages: Math.max(1, Math.ceil(total / pageSize)),
+  });
 });
 
 router.get("/:slug", async (req, res) => {

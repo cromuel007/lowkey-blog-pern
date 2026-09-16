@@ -87,8 +87,12 @@ export default function Home() {
                 <div className="grid grid-cols-1 gap-6 pb-10 sm:-mt-4 sm:pb-15 md:grid-cols-2">
                     {posts.map((post) => (
                         <article
-                            className="flex h-full flex-col overflow-hidden rounded-2xl border border-line bg-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
+                            className="flex h-full cursor-pointer flex-col overflow-hidden rounded-2xl border border-line bg-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
                             key={post.id}
+                            onClick={(e) => {
+                                if ((e.target as HTMLElement).closest("a")) return;
+                                window.location.href = `/posts/${post.slug}`;
+                            }}
                         >
                             <img
                                 src={

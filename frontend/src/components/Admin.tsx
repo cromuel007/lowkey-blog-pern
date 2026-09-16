@@ -1,7 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
     ArrowLeft,
     ArrowRight,
+    ChevronLeft,
+    ChevronRight,
     ExternalLink,
     FileText,
     LayoutDashboard,
@@ -238,7 +240,7 @@ export function AdminLogin() {
                 </div>
 
                 <form
-                    className="rounded-2xl bg-white px-7 py-8 shadow-sm sm:px-8"
+                    className="rounded-lg bg-white px-7 py-8 shadow-sm sm:px-8"
                     onSubmit={submit}
                 >
                     <div className="mb-7">
@@ -349,7 +351,7 @@ export function AdminDashboard() {
             </div>
 
             <div className="grid gap-6 md:grid-cols-2">
-                <div className="rounded-2xl bg-white px-7 py-8 shadow-sm">
+                <div className="rounded-lg bg-white px-7 py-8 shadow-sm">
                     <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent-soft text-accent">
                         <FileText className="h-5 w-5" />
                     </div>
@@ -371,7 +373,7 @@ export function AdminDashboard() {
                     </Link>
                 </div>
 
-                <div className="rounded-2xl bg-white px-7 py-8 shadow-sm">
+                <div className="rounded-lg bg-white px-7 py-8 shadow-sm">
                     <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-surface-alt text-slate">
                         <ExternalLink className="h-5 w-5" />
                     </div>
@@ -404,9 +406,15 @@ export function Admin() {
     const navigate = useNavigate();
 
     const [posts, setPosts] = useState<Post[]>([]);
+    const [totalPosts, setTotalPosts] = useState(0);
+    const [totalPages, setTotalPages] = useState(1);
     const [message, setMessage] = useState("");
     const [deletePostId, setDeletePostId] = useState<number | null>(null);
     const [deleting, setDeleting] = useState(false);
+    const [currentPage, setCurrentPage] = useState(1);
+    const loadingDots = useLoadingDots();
+
+    const POSTS_PER_PAGE = 10;
 
     const token = localStorage.getItem("blog_token");
 
@@ -414,25 +422,35 @@ export function Admin() {
         Authorization: `Bearer ${token}`,
     };
 
-    async function load() {
+    async function load(page = currentPage) {
         if (!token) {
             navigate("/admin/login");
             return;
         }
 
-        const { data } = await api.get<Post[]>(
-            "/api/posts?admin=true",
-            {
-                headers,
-            }
-        );
+        const { data } = await api.get<{
+            posts: Post[];
+            total: number;
+            page: number;
+            pageSize: number;
+            totalPages: number;
+        }>("/api/posts", {
+            params: {
+                admin: true,
+                page,
+                pageSize: POSTS_PER_PAGE,
+            },
+            headers,
+        });
 
-        setPosts(data);
+        setPosts(data.posts);
+        setTotalPosts(data.total);
+        setTotalPages(data.totalPages);
     }
 
     useEffect(() => {
-        load().catch(() => navigate("/admin/login"));
-    }, []);
+        load(currentPage).catch(() => navigate("/admin/login"));
+    }, [currentPage]);
 
     function remove(id: number) {
         setDeletePostId(id);
@@ -453,7 +471,14 @@ export function Admin() {
 
             setMessage("Post deleted.");
             setDeletePostId(null);
-            await load();
+
+            // If the current page becomes empty after deleting
+            // the last post on that page, go back one page.
+            if (posts.length === 1 && currentPage > 1) {
+                setCurrentPage((page) => page - 1);
+            } else {
+                await load(currentPage);
+            }
         } catch {
             setMessage("Could not delete post.");
         } finally {
@@ -487,24 +512,9 @@ export function Admin() {
                 </Link>
             </div>
 
-            {/* {message && (
-                <div className="relative mb-6 rounded-xl border border-green-200 bg-green-50 px-4 py-3 pr-10 text-sm font-medium text-green-700">
-                    {message}
-
-                    <button
-                        type="button"
-                        onClick={() => setMessage("")}
-                        aria-label="Dismiss message"
-                        className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-green-700 transition-colors hover:bg-green-100"
-                    >
-                        <X className="h-4 w-4" />
-                    </button>
-                </div>
-            )} */}
-
             {posts.length === 0 ? (
-                <div className="rounded-2xl bg-white px-7 py-12 text-center shadow-sm">
-                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-accent-soft text-accent">
+                <div className="rounded-lg bg-white px-7 py-12 text-center shadow-sm">
+                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-lg bg-accent-soft text-accent">
                         <FileText className="h-5 w-5" />
                     </div>
 
@@ -525,75 +535,165 @@ export function Admin() {
                     </Link>
                 </div>
             ) : (
-                <div className="space-y-4">
-                    {posts.map((post) => (
-                        <article
-                            key={post.id}
-                            className="rounded-2xl bg-white px-5 py-5 shadow-sm transition-shadow hover:shadow-md sm:px-6"
-                        >
-                            <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-                                <div className="min-w-0">
-                                    <div className="flex flex-wrap items-center gap-2">
-                                        <h2 className="truncate text-lg font-bold text-ink">
-                                            {post.title}
-                                        </h2>
+                <div className="overflow-hidden rounded-lg bg-white shadow-sm">
+                    <div className="overflow-x-auto">
+                        <table className="w-full min-w-[800px] text-left">
+                            <thead className="border-b border-line bg-[#e2e7f0]">
+                                <tr>
+                                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wide text-muted">
+                                        Title
+                                    </th>
 
-                                        <span
-                                            className={`rounded-full px-2.5 py-1 text-xs font-semibold ${post.published
-                                                ? "bg-green-50 text-success"
-                                                : "bg-surface-alt text-muted"
-                                                }`}
-                                        >
-                                            {post.published
-                                                ? "Published"
-                                                : "Draft"}
-                                        </span>
-                                    </div>
+                                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wide text-muted">
+                                        Category
+                                    </th>
 
-                                    <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate">
-                                        <span>
+                                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wide text-muted">
+                                        Status
+                                    </th>
+
+                                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wide text-muted">
+                                        Date
+                                    </th>
+
+                                    <th className="px-6 py-4 text-center text-xs font-bold uppercase tracking-wide text-muted">
+                                        Actions
+                                    </th>
+                                </tr>
+                            </thead>
+
+                            <tbody className="divide-y divide-line">
+                                {posts.map((post) => (
+                                    <tr
+                                        key={post.id}
+                                        className="transition-colors hover:bg-surface/50"
+                                    >
+                                        <td className="px-6 py-4">
+                                            <div className="max-w-[350px]">
+                                                <p className="truncate font-semibold text-ink">
+                                                    {post.title}
+                                                </p>
+
+                                                <p className="mt-1 truncate text-sm text-muted">
+                                                    /{post.slug}
+                                                </p>
+                                            </div>
+                                        </td>
+
+                                        <td className="px-6 py-4 text-sm text-slate">
                                             {post.category?.name ||
                                                 "General"}
-                                        </span>
+                                        </td>
 
-                                        <span>·</span>
+                                        <td className="px-6 py-4">
+                                            <span
+                                                className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${post.published
+                                                    ? "bg-green-50 text-success"
+                                                    : "bg-surface-alt text-muted"
+                                                    }`}
+                                            >
+                                                {post.published
+                                                    ? "Published"
+                                                    : "Draft"}
+                                            </span>
+                                        </td>
 
-                                        <span>
+                                        <td className="whitespace-nowrap px-6 py-4 text-sm text-slate">
                                             {new Date(
                                                 post.publishedAt ||
                                                 post.createdAt
                                             ).toLocaleDateString()}
-                                        </span>
+                                        </td>
 
-                                        <span>·</span>
+                                        <td className="px-6 py-4">
+                                            <div className="flex justify-end gap-2">
+                                                <Link
+                                                    to={`/admin/posts/${post.id}/edit`}
+                                                    title="Edit post"
+                                                    className="inline-flex items-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-sm font-semibold text-ink transition-colors hover:border-accent hover:text-accent"
+                                                >
+                                                    <Pencil className="h-4 w-4" />
+                                                </Link>
 
-                                        <span className="truncate text-muted">
-                                            /{post.slug}
-                                        </span>
-                                    </div>
-                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        remove(post.id)
+                                                    }
+                                                    title="Delete post"
+                                                    className="inline-flex items-center gap-2 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-sm font-semibold text-danger transition-colors hover:bg-red-100"
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
 
-                                <div className="flex shrink-0 gap-2">
-                                    <Link
-                                        to={`/admin/posts/${post.id}/edit`}
-                                        className="inline-flex items-center gap-2 rounded-lg border border-line bg-white px-4 py-2.5 text-sm font-semibold text-ink transition-colors hover:border-accent hover:text-accent"
-                                    >
-                                        <Pencil className="h-4 w-4" />
-                                        Edit
-                                    </Link>
+                    <div className="flex flex-col gap-3 border-t border-line px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+                        <p className="text-xs text-muted">
+                            Showing{" "}
+                            <span className="font-semibold text-ink">
+                                {(currentPage - 1) *
+                                    POSTS_PER_PAGE +
+                                    1}
+                            </span>
+                            {" - "}
+                            <span className="font-semibold text-ink">
+                                {Math.min(
+                                    currentPage * POSTS_PER_PAGE,
+                                    totalPosts
+                                )}
+                            </span>{" "}
+                            of{" "}
+                            <span className="font-semibold text-ink">
+                                {totalPosts}
+                            </span>{" "}
+                            posts
+                        </p>
 
-                                    <button
-                                        type="button"
-                                        onClick={() => remove(post.id)}
-                                        className="inline-flex items-center gap-2 rounded-lg border border-red-100 bg-red-50 px-4 py-2.5 text-sm font-semibold text-danger transition-colors hover:bg-red-100"
-                                    >
-                                        <Trash2 className="h-4 w-4" />
-                                        Delete
-                                    </button>
-                                </div>
-                            </div>
-                        </article>
-                    ))}
+                        <div className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    setCurrentPage((page) =>
+                                        Math.max(1, page - 1)
+                                    )
+                                }
+                                disabled={currentPage === 1}
+                                className="inline-flex items-center gap-1 rounded-lg border border-line bg-white px-3 py-2 text-xs font-semibold text-ink transition-colors hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
+                                title="Previous page"
+                            >
+                                <ChevronLeft className="h-4 w-4" />
+                            </button>
+
+                            <span className="px-2 text-xs font-semibold text-slate">
+                                {currentPage} of {totalPages}
+                            </span>
+
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    setCurrentPage((page) =>
+                                        Math.min(
+                                            totalPages,
+                                            page + 1
+                                        )
+                                    )
+                                }
+                                disabled={
+                                    currentPage === totalPages
+                                }
+                                className="inline-flex items-center gap-1 rounded-lg border border-line bg-white px-3 py-2 text-xs font-semibold text-ink transition-colors hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
+                                title="Next page"
+                            >
+                                <ChevronRight className="h-4 w-4" />
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
 
@@ -630,7 +730,7 @@ export function Admin() {
                             className="bg-danger text-white hover:bg-danger/90"
                         >
                             {deleting
-                                ? "Deleting..."
+                                ? `Deleting${loadingDots}`
                                 : "Delete Post"}
                         </AlertDialogAction>
                     </AlertDialogFooter>
@@ -758,27 +858,18 @@ export function AdminPostEdit() {
 
             try {
                 const [
-                    postsResponse,
+                    postResponse,
                     categoriesResponse,
                     tagsResponse,
                 ] = await Promise.all([
-                    api.get<Post[]>("/api/posts?admin=true", {
+                    api.get<Post>(`/api/posts/${id}`, {
                         headers,
                     }),
                     api.get<Category[]>("/api/meta/categories"),
                     api.get<Tag[]>("/api/meta/tags"),
                 ]);
 
-                const foundPost = postsResponse.data.find(
-                    (item) => String(item.id) === String(id)
-                );
-
-                if (!foundPost) {
-                    setError("Post not found.");
-                    return;
-                }
-
-                setPost(foundPost);
+                setPost(postResponse.data);
                 setCategories(categoriesResponse.data);
                 setTags(tagsResponse.data);
             } catch {
@@ -813,7 +904,7 @@ export function AdminPostEdit() {
                     Back to posts
                 </Link>
 
-                <div className="mt-8 rounded-2xl border border-red-100 bg-red-50 p-7 text-center">
+                <div className="mt-8 rounded-lg border border-red-100 bg-red-50 p-7 text-center">
                     <p className="font-medium text-danger">
                         {error || "Post not found."}
                     </p>
@@ -1054,7 +1145,7 @@ function PostForm({
 
     return (
         <form
-            className="mb-8 rounded-2xl bg-white px-6 py-7 shadow-sm sm:px-8 sm:py-8"
+            className="mb-8 rounded-lg bg-white px-6 py-7 shadow-sm sm:px-8 sm:py-8"
             onSubmit={submit}
         >
             {error && (
