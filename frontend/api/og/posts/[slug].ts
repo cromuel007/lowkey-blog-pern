@@ -1,19 +1,23 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
+declare const process: { env: { API_URL?: string; }; };
 
 export default async function handler(
-    req: VercelRequest,
-    res: VercelResponse
+    req: Request
 ) {
-    const { slug } = req.query;
+    const url = new URL(req.url);
+    const slug = url.pathname.split("/").pop();
 
-    if (typeof slug !== "string") {
-        return res.status(400).send("Invalid slug");
+    if (!slug) {
+        return new Response("Invalid slug", {
+            status: 400,
+        });
     }
 
     const apiUrl = process.env.API_URL;
 
     if (!apiUrl) {
-        return res.status(500).send("API_URL is not configured");
+        return new Response("API_URL is not configured", {
+            status: 500,
+        });
     }
 
     try {
@@ -22,7 +26,9 @@ export default async function handler(
         );
 
         if (!response.ok) {
-            return res.status(response.status).send("Post not found");
+            return new Response("Post not found", {
+                status: response.status,
+            });
         }
 
         const post = await response.json();
@@ -37,7 +43,7 @@ export default async function handler(
             post.excerpt ||
             "";
 
-        const url =
+        const postUrl =
             `https://blog.tubbylab.com/posts/${post.slug}`;
 
         const image =
@@ -45,94 +51,96 @@ export default async function handler(
             "https://blog.tubbylab.com/og-image.png";
 
         const escapeHtml = (value: string) =>
-            value
+            String(value)
                 .replace(/&/g, "&amp;")
                 .replace(/</g, "&lt;")
                 .replace(/>/g, "&gt;")
                 .replace(/"/g, "&quot;")
                 .replace(/'/g, "&#039;");
 
-        res.setHeader(
-            "Content-Type",
-            "text/html; charset=utf-8"
-        );
-
-        res.setHeader(
-            "Cache-Control",
-            "public, s-maxage=300, stale-while-revalidate=600"
-        );
-
-        return res.status(200).send(`
+        const html = `
 <!doctype html>
 <html lang="en">
 <head>
-    <meta charset="utf-8" />
+    <meta charset="utf-8">
 
     <title>${escapeHtml(title)}</title>
 
     <meta
         name="description"
         content="${escapeHtml(description)}"
-    />
+    >
 
     <link
         rel="canonical"
-        href="${escapeHtml(url)}"
-    />
+        href="${escapeHtml(postUrl)}"
+    >
 
     <meta
         property="og:title"
         content="${escapeHtml(title)}"
-    />
+    >
 
     <meta
         property="og:description"
         content="${escapeHtml(description)}"
-    />
+    >
 
     <meta
         property="og:url"
-        content="${escapeHtml(url)}"
-    />
+        content="${escapeHtml(postUrl)}"
+    >
 
     <meta
         property="og:type"
         content="article"
-    />
+    >
 
     <meta
         property="og:image"
         content="${escapeHtml(image)}"
-    />
+    >
 
     <meta
         name="twitter:card"
         content="summary_large_image"
-    />
+    >
 
     <meta
         name="twitter:title"
         content="${escapeHtml(title)}"
-    />
+    >
 
     <meta
         name="twitter:description"
         content="${escapeHtml(description)}"
-    />
+    >
 
     <meta
         name="twitter:image"
         content="${escapeHtml(image)}"
-    />
+    >
 </head>
 
 <body>
-    <p>${escapeHtml(title)}</p>
+    <h1>${escapeHtml(title)}</h1>
 </body>
 </html>
-        `);
+`;
+
+        return new Response(html, {
+            status: 200,
+            headers: {
+                "Content-Type": "text/html; charset=utf-8",
+                "Cache-Control":
+                    "public, s-maxage=300, stale-while-revalidate=600",
+            },
+        });
     } catch (error) {
         console.error(error);
-        return res.status(500).send("Failed to load post");
+
+        return new Response("Failed to load post", {
+            status: 500,
+        });
     }
 }
