@@ -278,7 +278,6 @@ export default function PostPage() {
                 >
                     <TwitterIcon size={32} round />
                 </TwitterShareButton>
-                
             </div>
 
             {/* Previous / Next */}
