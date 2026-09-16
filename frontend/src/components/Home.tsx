@@ -85,62 +85,68 @@ export default function Home() {
 
             {!loading && !error && (
                 <div className="grid grid-cols-1 gap-6 pb-10 sm:-mt-4 sm:pb-15 md:grid-cols-2">
-                    {posts.map((post) => (
-                        <article
-                            className="flex h-full cursor-pointer flex-col overflow-hidden rounded-2xl border border-line bg-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
-                            key={post.id}
-                            onClick={(e) => {
-                                if ((e.target as HTMLElement).closest("a")) return;
-                                window.location.href = `/posts/${post.slug}`;
-                            }}
-                        >
-                            <img
-                                src={
-                                    post.coverImageUrl ||
-                                    getAsset("sky.png")
-                                }
-                                alt={post.title}
-                                className="aspect-[16/9] w-full object-cover"
-                            />
+                    {[...posts]
+                        .sort(
+                            (a, b) =>
+                                new Date(b.publishedAt || b.createdAt).getTime() -
+                                new Date(a.publishedAt || a.createdAt).getTime()
+                        )
+                        .map((post) => (
+                            <article
+                                className="flex h-full cursor-pointer flex-col overflow-hidden rounded-2xl border border-line bg-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
+                                key={post.id}
+                                onClick={(e) => {
+                                    if ((e.target as HTMLElement).closest("a")) return;
+                                    window.location.href = `/posts/${post.slug}`;
+                                }}
+                            >
+                                <img
+                                    src={
+                                        post.coverImageUrl ||
+                                        getAsset("sky.png")
+                                    }
+                                    alt={post.title}
+                                    className="aspect-[16/9] w-full object-cover"
+                                />
 
-                            <div className="flex flex-1 flex-col p-6">
-                                <p className="text-[0.85rem] font-medium text-muted">
-                                    {post.category?.name || "General"} ·{" "}
-                                    {new Date(
-                                        post.publishedAt || post.createdAt
-                                    ).toLocaleDateString()}
-                                </p>
+                                <div className="flex flex-1 flex-col p-6">
+                                    <p className="text-[0.85rem] font-medium text-muted">
+                                        {post.category?.name || "General"} ·{" "}
+                                        {new Date(
+                                            post.publishedAt || post.createdAt
+                                        ).toLocaleDateString()}
+                                    </p>
 
-                                <h2 className="mt-3 text-2xl font-bold leading-tight text-ink">
+                                    <h2 className="mt-3 text-2xl font-bold leading-tight text-ink">
+                                        <Link
+                                            to={`/posts/${post.slug}`}
+                                            className="read-article-link mt-auto inline-flex items-center gap-1 pt-5 font-bold"
+                                        >
+                                            {post.title}
+                                        </Link>
+                                    </h2>
+
+                                    <p className="mt-3 leading-[1.7] text-slate">
+                                        {post.excerpt ||
+                                            post.content
+                                                .replace(/<[^>]*>/g, "")
+                                                .slice(0, 180)}
+                                        {post.content.replace(/<[^>]*>/g, "")
+                                            .length > 180
+                                            ? "..."
+                                            : ""}
+                                    </p>
+
                                     <Link
                                         to={`/posts/${post.slug}`}
                                         className="read-article-link mt-auto inline-flex items-center gap-1 pt-5 font-bold"
                                     >
-                                        {post.title}
+                                        Read article
+                                        <ArrowRight className="h-4 w-4" />
                                     </Link>
-                                </h2>
-
-                                <p className="mt-3 leading-[1.7] text-slate">
-                                    {post.excerpt ||
-                                        post.content
-                                            .replace(/<[^>]*>/g, "")
-                                            .slice(0, 180)}
-                                    {post.content.replace(/<[^>]*>/g, "")
-                                        .length > 180
-                                        ? "..."
-                                        : ""}
-                                </p>
-
-                                <Link
-                                    to={`/posts/${post.slug}`}
-                                    className="read-article-link mt-auto inline-flex items-center gap-1 pt-5 font-bold"
-                                >
-                                    Read article
-                                    <ArrowRight className="h-4 w-4" />
-                                </Link>
-                            </div>
-                        </article>
-                    ))}
+                                </div>
+                            </article>
+                        ))}
                 </div>
             )}
 

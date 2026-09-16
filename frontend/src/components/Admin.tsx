@@ -10,6 +10,7 @@ import {
     LogOut,
     Pencil,
     Plus,
+    Search,
     Trash2,
     X,
 } from "lucide-react";
@@ -412,6 +413,14 @@ export function Admin() {
     const [deletePostId, setDeletePostId] = useState<number | null>(null);
     const [deleting, setDeleting] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
+    const [search, setSearch] = useState("");
+
+    const [sortBy, setSortBy] = useState<
+        "title" | "category" | "published" | "publishedAt"
+    >("publishedAt");
+
+    const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+
     const loadingDots = useLoadingDots();
 
     const POSTS_PER_PAGE = 10;
@@ -439,6 +448,9 @@ export function Admin() {
                 admin: true,
                 page,
                 pageSize: POSTS_PER_PAGE,
+                sortBy,
+                sortOrder,
+                search,
             },
             headers,
         });
@@ -450,7 +462,46 @@ export function Admin() {
 
     useEffect(() => {
         load(currentPage).catch(() => navigate("/admin/login"));
-    }, [currentPage]);
+    }, [currentPage, sortBy, sortOrder, search]);
+
+    function handleSort(
+        column: "title" | "category" | "published" | "publishedAt"
+    ) {
+        if (sortBy === column) {
+            setSortOrder((order) =>
+                order === "asc" ? "desc" : "asc"
+            );
+        } else {
+            setSortBy(column);
+            setSortOrder("asc");
+        }
+
+        setCurrentPage(1);
+    }
+
+    function SortIndicator({
+        column,
+    }: {
+        column:
+        | "title"
+        | "category"
+        | "published"
+        | "publishedAt";
+    }) {
+        if (sortBy !== column) {
+            return (
+                <span className="text-muted/50">
+                    ↕
+                </span>
+            );
+        }
+
+        return (
+            <span className="font-bold text-accent">
+                {sortOrder === "asc" ? "↑" : "↓"}
+            </span>
+        );
+    }
 
     function remove(id: number) {
         setDeletePostId(id);
@@ -472,8 +523,6 @@ export function Admin() {
             setMessage("Post deleted.");
             setDeletePostId(null);
 
-            // If the current page becomes empty after deleting
-            // the last post on that page, go back one page.
             if (posts.length === 1 && currentPage > 1) {
                 setCurrentPage((page) => page - 1);
             } else {
@@ -512,6 +561,24 @@ export function Admin() {
                 </Link>
             </div>
 
+            {/* Find */}
+            <div className="mb-4">
+                <div className="relative w-full sm:max-w-sm">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+
+                    <input
+                        type="text"
+                        value={search}
+                        onChange={(e) => {
+                            setSearch(e.target.value);
+                            setCurrentPage(1);
+                        }}
+                        placeholder="Find posts..."
+                        className="w-full rounded-lg border border-line bg-white py-2.5 pl-9 pr-3 text-sm text-ink outline-none transition-colors placeholder:text-muted focus:border-accent"
+                    />
+                </div>
+            </div>
+
             {posts.length === 0 ? (
                 <div className="rounded-lg bg-white px-7 py-12 text-center shadow-sm">
                     <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-lg bg-accent-soft text-accent">
@@ -519,20 +586,32 @@ export function Admin() {
                     </div>
 
                     <h2 className="mt-4 font-bold text-ink">
-                        No posts yet
+                        {search ? "No posts found" : "No posts yet"}
                     </h2>
 
                     <p className="mt-1 text-sm text-slate">
-                        Create your first blog post to get started.
+                        {search
+                            ? `No posts match "${search}".`
+                            : "Create your first blog post to get started."}
                     </p>
 
-                    <Link
-                        to="/admin/posts/new"
-                        className="mt-5 inline-flex items-center gap-2 font-semibold text-accent transition-colors hover:text-accent-dark"
-                    >
-                        Create your first post
-                        <ArrowRight className="h-4 w-4" />
-                    </Link>
+                    {search ? (
+                        <button
+                            type="button"
+                            onClick={() => setSearch("")}
+                            className="mt-5 inline-flex items-center gap-2 font-semibold text-accent transition-colors hover:text-accent-dark"
+                        >
+                            Clear search
+                        </button>
+                    ) : (
+                        <Link
+                            to="/admin/posts/new"
+                            className="mt-5 inline-flex items-center gap-2 font-semibold text-accent transition-colors hover:text-accent-dark"
+                        >
+                            Create your first post
+                            <ArrowRight className="h-4 w-4" />
+                        </Link>
+                    )}
                 </div>
             ) : (
                 <div className="overflow-hidden rounded-lg bg-white shadow-sm">
@@ -541,19 +620,59 @@ export function Admin() {
                             <thead className="border-b border-line bg-[#e2e7f0]">
                                 <tr>
                                     <th className="px-6 py-4 text-xs font-bold uppercase tracking-wide text-muted">
-                                        Title
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                handleSort("title")
+                                            }
+                                            className="inline-flex items-center gap-1.5 transition-colors hover:text-ink"
+                                            title="Sort by title"
+                                        >
+                                            <span>Title</span>
+                                            <SortIndicator column="title" />
+                                        </button>
                                     </th>
 
                                     <th className="px-6 py-4 text-xs font-bold uppercase tracking-wide text-muted">
-                                        Category
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                handleSort("category")
+                                            }
+                                            className="inline-flex items-center gap-1.5 transition-colors hover:text-ink"
+                                            title="Sort by category"
+                                        >
+                                            <span>Category</span>
+                                            <SortIndicator column="category" />
+                                        </button>
                                     </th>
 
                                     <th className="px-6 py-4 text-xs font-bold uppercase tracking-wide text-muted">
-                                        Status
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                handleSort("published")
+                                            }
+                                            className="inline-flex items-center gap-1.5 transition-colors hover:text-ink"
+                                            title="Sort by status"
+                                        >
+                                            <span>Status</span>
+                                            <SortIndicator column="published" />
+                                        </button>
                                     </th>
 
                                     <th className="px-6 py-4 text-xs font-bold uppercase tracking-wide text-muted">
-                                        Date
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                handleSort("publishedAt")
+                                            }
+                                            className="inline-flex items-center gap-1.5 transition-colors hover:text-ink"
+                                            title="Sort by date"
+                                        >
+                                            <span>Date</span>
+                                            <SortIndicator column="publishedAt" />
+                                        </button>
                                     </th>
 
                                     <th className="px-6 py-4 text-center text-xs font-bold uppercase tracking-wide text-muted">
@@ -588,8 +707,8 @@ export function Admin() {
                                         <td className="px-6 py-4">
                                             <span
                                                 className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${post.published
-                                                    ? "bg-green-50 text-success"
-                                                    : "bg-surface-alt text-muted"
+                                                        ? "bg-green-50 text-success"
+                                                        : "bg-surface-alt text-muted"
                                                     }`}
                                             >
                                                 {post.published
@@ -633,6 +752,7 @@ export function Admin() {
                         </table>
                     </div>
 
+                    {/* Pagination */}
                     <div className="flex flex-col gap-3 border-t border-line px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
                         <p className="text-xs text-muted">
                             Showing{" "}
@@ -699,6 +819,7 @@ export function Admin() {
 
             <div className="h-12" />
 
+            {/* Delete dialog stays unchanged */}
             <AlertDialog
                 open={deletePostId !== null}
                 onOpenChange={(open: any) => {
@@ -1391,8 +1512,8 @@ function PostForm({
                             <label
                                 key={t.id}
                                 className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${tagIds.includes(t.id)
-                                        ? "border-accent bg-accent-soft text-accent"
-                                        : "border-line bg-white text-slate hover:bg-surface-alt"
+                                    ? "border-accent bg-accent-soft text-accent"
+                                    : "border-line bg-white text-slate hover:bg-surface-alt"
                                     }`}
                             >
                                 <input
