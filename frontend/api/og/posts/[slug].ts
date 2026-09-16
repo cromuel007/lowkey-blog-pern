@@ -1,23 +1,19 @@
-declare const process: { env: { API_URL?: string; }; };
+import type { VercelRequest, VercelResponse } from "@vercel/node";
 
 export default async function handler(
-    req: Request
+    req: VercelRequest,
+    res: VercelResponse
 ) {
-    const url = new URL(req.url);
-    const slug = url.pathname.split("/").pop();
+    const slug = req.query.slug;
 
-    if (!slug) {
-        return new Response("Invalid slug", {
-            status: 400,
-        });
+    if (!slug || Array.isArray(slug)) {
+        return res.status(400).send("Invalid slug");
     }
 
     const apiUrl = process.env.API_URL;
 
     if (!apiUrl) {
-        return new Response("API_URL is not configured", {
-            status: 500,
-        });
+        return res.status(500).send("API_URL is not configured");
     }
 
     try {
@@ -26,9 +22,7 @@ export default async function handler(
         );
 
         if (!response.ok) {
-            return new Response("Post not found", {
-                status: response.status,
-            });
+            return res.status(response.status).send("Post not found");
         }
 
         const post = await response.json();
@@ -128,19 +122,13 @@ export default async function handler(
 </html>
 `;
 
-        return new Response(html, {
-            status: 200,
-            headers: {
-                "Content-Type": "text/html; charset=utf-8",
-                "Cache-Control":
-                    "public, s-maxage=300, stale-while-revalidate=600",
-            },
-        });
+        res.setHeader("Cache-Control", "public, s-maxage=300, stale-while-revalidate=600");
+        res.setHeader("Content-Type", "text/html; charset=utf-8");
+
+        return res.status(200).send(html);
     } catch (error) {
         console.error(error);
 
-        return new Response("Failed to load post", {
-            status: 500,
-        });
+        return res.status(500).send("Failed to load post");
     }
 }
