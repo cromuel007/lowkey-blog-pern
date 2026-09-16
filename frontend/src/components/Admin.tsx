@@ -619,7 +619,7 @@ export function Admin() {
                         <table className="w-full min-w-[800px] text-left">
                             <thead className="border-b border-line bg-[#e2e7f0]">
                                 <tr>
-                                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wide">
+                                    <th className="px-6 py-4 text-sm font-bold uppercase tracking-wide">
                                         <button
                                             type="button"
                                             onClick={() =>
@@ -633,7 +633,7 @@ export function Admin() {
                                         </button>
                                     </th>
 
-                                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wide">
+                                    <th className="px-6 py-4 text-sm font-bold uppercase tracking-wide">
                                         <button
                                             type="button"
                                             onClick={() =>
@@ -647,7 +647,7 @@ export function Admin() {
                                         </button>
                                     </th>
 
-                                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wide">
+                                    <th className="px-6 py-4 text-sm font-bold uppercase tracking-wide">
                                         <button
                                             type="button"
                                             onClick={() =>
@@ -661,7 +661,7 @@ export function Admin() {
                                         </button>
                                     </th>
 
-                                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wide">
+                                    <th className="px-6 py-4 text-sm font-bold uppercase tracking-wide">
                                         <button
                                             type="button"
                                             onClick={() =>
@@ -675,7 +675,7 @@ export function Admin() {
                                         </button>
                                     </th>
 
-                                    <th className="px-4 py-4 text-center text-xs font-bold tracking-wide">
+                                    <th className="px-4 py-4 text-center text-sm font-bold tracking-wide">
                                         Actions
                                     </th>
                                 </tr>
@@ -689,7 +689,7 @@ export function Admin() {
                                     >
                                         <td className="px-6 py-4">
                                             <div className="max-w-[550px]">
-                                                <p className="truncate font-semibold text-ink">
+                                                <p className="truncate text-sm font-semibold text-ink">
                                                     {post.title}
                                                 </p>
 
@@ -756,12 +756,12 @@ export function Admin() {
                     <div className="flex flex-col gap-3 border-t border-line px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
                         <p className="text-xs text-muted">
                             Showing{" "}
-                            <span className="font-semibold text-ink">
+                            {/* <span className="font-semibold text-ink">
                                 {(currentPage - 1) *
                                     POSTS_PER_PAGE +
                                     1}
                             </span>
-                            {" - "}
+                            {" - "} */}
                             <span className="font-semibold text-ink">
                                 {Math.min(
                                     currentPage * POSTS_PER_PAGE,
@@ -772,10 +772,10 @@ export function Admin() {
                             <span className="font-semibold text-ink">
                                 {totalPosts}
                             </span>{" "}
-                            posts
+                            {/* posts */}
                         </p>
 
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-0">
                             <button
                                 type="button"
                                 onClick={() =>
@@ -784,31 +784,29 @@ export function Admin() {
                                     )
                                 }
                                 disabled={currentPage === 1}
-                                className="inline-flex items-center gap-1 rounded-lg border border-line bg-white px-3 py-2 text-xs font-semibold text-ink transition-colors hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
-                                title="Previous page"
+                                className="inline-flex items-center gap-0 rounded-lg border border-transparent bg-white px-1 py-1 text-xs font-semibold text-ink transition-colors hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
+                                title="Previous"
                             >
                                 <ChevronLeft className="h-4 w-4" />
                             </button>
 
-                            <span className="px-2 text-xs font-semibold text-slate">
-                                {currentPage} of {totalPages}
+                            <span className="px-1 text-xs text-slate">
+                                {" Page "}
+                                <span className="font-semibold">{currentPage}</span>
+                                {" of "}
+                                <span className="font-semibold">{totalPages}</span>
                             </span>
 
                             <button
                                 type="button"
                                 onClick={() =>
                                     setCurrentPage((page) =>
-                                        Math.min(
-                                            totalPages,
-                                            page + 1
-                                        )
+                                        Math.min(totalPages, page + 1)
                                     )
                                 }
-                                disabled={
-                                    currentPage === totalPages
-                                }
-                                className="inline-flex items-center gap-1 rounded-lg border border-line bg-white px-3 py-2 text-xs font-semibold text-ink transition-colors hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
-                                title="Next page"
+                                disabled={currentPage === totalPages}
+                                className="inline-flex items-center gap-0 rounded-lg border border-transparent bg-white px-1 py-1 text-xs font-semibold text-ink transition-colors hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
+                                title="Next"
                             >
                                 <ChevronRight className="h-4 w-4" />
                             </button>
