@@ -121,7 +121,32 @@ router.get("/", async (req, res) => {
       : {}),
   };
 
-  let orderBy: Prisma.PostFindManyArgs["orderBy"];
+  type OrderByItem =
+    | {
+      title: "asc" | "desc";
+    }
+    | {
+      category: {
+        name: "asc" | "desc";
+      };
+    }
+    | {
+      published: "asc" | "desc";
+    }
+    | {
+      publishedAt: {
+        sort: "asc" | "desc";
+        nulls: "first" | "last";
+      };
+    }
+    | {
+      createdAt: "asc" | "desc";
+    }
+    | {
+      id: "asc" | "desc";
+    };
+
+  let orderBy: OrderByItem[];
 
   switch (sortBy) {
     case "title":
