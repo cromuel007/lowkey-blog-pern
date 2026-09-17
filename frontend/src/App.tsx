@@ -1,15 +1,13 @@
-
 import { useEffect, useState } from "react";
-import { Link, Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 
-import {
-  Admin,
-  AdminDashboard,
-  AdminLayout,
-  AdminLogin,
-  AdminPostEdit,
-  AdminPostNew,
-} from "./components/Admin";
+import AdminLayout from "./components/AdminLayout";
+import AdminLogin from "./components/AdminLogin";
+import AdminDashboard from "./components/AdminDashboard";
+import AdminPosts from "./components/AdminPosts";
+import AdminPostNew from "./components/AdminPostNew";
+import AdminPostEdit from "./components/AdminPostEdit";
+
 import Home from "./components/Home";
 import PostPage from "./components/PostPage";
 import Footer from "./components/Footer";
@@ -105,12 +103,9 @@ export default function App() {
         {/* Admin */}
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/admin" element={<AdminDashboard />} />
-        <Route path="/admin/posts" element={<Admin />} />
+        <Route path="/admin/posts" element={<AdminPosts />} />
         <Route path="/admin/posts/new" element={<AdminPostNew />} />
-        <Route
-          path="/admin/posts/:id/edit"
-          element={<AdminPostEdit />}
-        />
+        <Route path="/admin/posts/:id/edit" element={<AdminPostEdit />} />
       </Routes>
     </Layout>
   );
