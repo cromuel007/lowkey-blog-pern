@@ -30,10 +30,43 @@ model Post {
   updatedAt       DateTime   @updatedAt
   categoryId      Int?
   category        Category?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  
   tags            PostTag[]
+  shares          PostShare[]
+  likes           PostLike[]
+
+  shareCount      Int        @default(0)
+  likeCount       Int        @default(0)
 
   @@index([published, publishedAt])
   @@index([categoryId])
+}
+
+
+model PostShare {
+  id        Int      @id @default(autoincrement())
+  postId    Int
+  platform  String
+  ip_address String?  @db.VarChar(45)
+  createdAt DateTime @default(now())
+
+  post      Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+  @@index([platform])
+}
+
+model PostLike {
+  id         Int      @id @default(autoincrement())
+  postId     Int
+  platform   String
+  ip_address String?  @db.VarChar(45)
+  createdAt  DateTime @default(now())
+
+  post       Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+  @@index([platform])
 }
 
 model Category {

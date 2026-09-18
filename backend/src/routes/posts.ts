@@ -299,6 +299,18 @@ router.get("/:slug", async (req, res) => {
     return res.json(post);
   }
 
+  // Get visitor IP for public like/share status.
+  const forwardedFor = req.headers["x-forwarded-for"];
+
+  const ipAddress =
+    (typeof forwardedFor === "string"
+      ? forwardedFor.split(",")[0]?.trim()
+      : Array.isArray(forwardedFor)
+        ? forwardedFor[0]?.trim()
+        : null) ||
+    req.socket.remoteAddress ||
+    null;
+
   // Normal public post lookup by slug.
   const post = await prisma.post.findUnique({
     where: {
@@ -313,59 +325,274 @@ router.get("/:slug", async (req, res) => {
     });
   }
 
-  res.json(post);
+  const liked = ipAddress
+    ? await prisma.postLike.findFirst({
+      where: {
+        postId: post.id,
+        ip_address: ipAddress,
+      },
+      select: {
+        id: true,
+      },
+    })
+    : null;
+
+  const shared = ipAddress
+    ? await prisma.postShare.findFirst({
+      where: {
+        postId: post.id,
+        ip_address: ipAddress,
+      },
+      select: {
+        id: true,
+      },
+    })
+    : null;
+
+  return res.json({
+    ...post,
+    liked: !!liked,
+    shared: !!shared,
+  });
 });
 
-router.post(
-  "/upload",
-  requireAuth,
-  upload.single("image"),
-  async (req, res) => {
-    try {
-      if (!req.file) {
-        return res.status(400).json({
-          message: "No image uploaded.",
-        });
-      }
+router.post("/:id/share", async (req, res) => {
+  const postId = Number(req.params.id);
+  const { platform } = req.body;
 
-      const extension =
-        req.file.originalname.split(".").pop()?.toLowerCase() || "jpg";
+  const forwardedFor = req.headers["x-forwarded-for"];
 
-      const fileName = `${crypto.randomUUID()}.${extension}`;
+  const ipAddress =
+    (typeof forwardedFor === "string"
+      ? forwardedFor.split(",")[0]?.trim()
+      : Array.isArray(forwardedFor)
+        ? forwardedFor[0]?.trim()
+        : null) ||
+    req.socket.remoteAddress ||
+    null;
 
-      await s3.send(
-        new PutObjectCommand({
-          Bucket: STORAGE_BUCKET,
-          Key: fileName,
-          Body: req.file.buffer,
-          ContentType: req.file.mimetype,
-          CacheControl: "3600",
-        })
-      );
+  if (!Number.isInteger(postId)) {
+    return res.status(400).json({
+      message: "Invalid post ID.",
+    });
+  }
 
-      const supabaseUrl = process.env.SUPABASE_URL;
+  if (!platform || typeof platform !== "string") {
+    return res.status(400).json({
+      message: "Platform is required.",
+    });
+  }
 
-      if (!supabaseUrl) {
-        return res.status(500).json({
-          message: "SUPABASE_URL is not configured.",
-        });
-      }
+  try {
+    const post = await prisma.post.findUnique({
+      where: {
+        id: postId,
+      },
+      select: {
+        id: true,
+      },
+    });
 
-      const publicUrl =
-        `${supabaseUrl}/storage/v1/object/public/${STORAGE_BUCKET}/${fileName}`;
-
-      res.status(201).json({
-        url: publicUrl,
-        fileName,
-      });
-    } catch (error) {
-      console.error("Image upload error:", error);
-
-      res.status(500).json({
-        message: "Could not upload image.",
+    if (!post) {
+      return res.status(404).json({
+        message: "Post not found.",
       });
     }
+
+    const result = await prisma.$transaction(async (tx) => {
+      const share = await tx.postShare.create({
+        data: {
+          postId,
+          platform: platform.trim(),
+          ip_address: ipAddress,
+        },
+      });
+
+      const updatedPost = await tx.post.update({
+        where: {
+          id: postId,
+        },
+        data: {
+          shareCount: {
+            increment: 1,
+          },
+        },
+        select: {
+          shareCount: true,
+        },
+      });
+
+      return {
+        share,
+        shareCount: updatedPost.shareCount,
+      };
+    });
+
+    return res.status(201).json(result);
+  } catch (error) {
+    console.error("Failed to track post share:", error);
+
+    return res.status(500).json({
+      message: "Could not track post share.",
+    });
   }
+});
+
+router.post("/:id/like", async (req, res) => {
+  const postId = Number(req.params.id);
+
+  const forwardedFor = req.headers["x-forwarded-for"];
+
+  const ipAddress =
+    (typeof forwardedFor === "string"
+      ? forwardedFor.split(",")[0]?.trim()
+      : Array.isArray(forwardedFor)
+        ? forwardedFor[0]?.trim()
+        : null) ||
+    req.socket.remoteAddress ||
+    null;
+
+  if (!Number.isInteger(postId)) {
+    return res.status(400).json({
+      message: "Invalid post ID.",
+    });
+  }
+
+  try {
+    const post = await prisma.post.findUnique({
+      where: {
+        id: postId,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!post) {
+      return res.status(404).json({
+        message: "Post not found.",
+      });
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      const existingLike = await tx.postLike.findFirst({
+        where: {
+          postId,
+          ip_address: ipAddress,
+        },
+      });
+
+      if (existingLike) {
+        await tx.postLike.delete({
+          where: {
+            id: existingLike.id,
+          },
+        });
+
+        const updatedPost = await tx.post.update({
+          where: {
+            id: postId,
+          },
+          data: {
+            likeCount: {
+              decrement: 1,
+            },
+          },
+          select: {
+            likeCount: true,
+          },
+        });
+
+        return {
+          liked: false,
+          likeCount: updatedPost.likeCount,
+        };
+      }
+
+      await tx.postLike.create({
+        data: {
+          postId,
+          platform: "",
+          ip_address: ipAddress,
+        },
+      });
+
+      const updatedPost = await tx.post.update({
+        where: {
+          id: postId,
+        },
+        data: {
+          likeCount: {
+            increment: 1,
+          },
+        },
+        select: {
+          likeCount: true,
+        },
+      });
+
+      return {
+        liked: true,
+        likeCount: updatedPost.likeCount,
+      };
+    });
+
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error("Failed to toggle post like:", error);
+
+    return res.status(500).json({
+      message: "Could not update post like.",
+    });
+  }
+});
+
+router.post("/upload", requireAuth, upload.single("image"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        message: "No image uploaded.",
+      });
+    }
+
+    const extension =
+      req.file.originalname.split(".").pop()?.toLowerCase() || "jpg";
+
+    const fileName = `${crypto.randomUUID()}.${extension}`;
+
+    await s3.send(
+      new PutObjectCommand({
+        Bucket: STORAGE_BUCKET,
+        Key: fileName,
+        Body: req.file.buffer,
+        ContentType: req.file.mimetype,
+        CacheControl: "3600",
+      })
+    );
+
+    const supabaseUrl = process.env.SUPABASE_URL;
+
+    if (!supabaseUrl) {
+      return res.status(500).json({
+        message: "SUPABASE_URL is not configured.",
+      });
+    }
+
+    const publicUrl =
+      `${supabaseUrl}/storage/v1/object/public/${STORAGE_BUCKET}/${fileName}`;
+
+    res.status(201).json({
+      url: publicUrl,
+      fileName,
+    });
+  } catch (error) {
+    console.error("Image upload error:", error);
+
+    res.status(500).json({
+      message: "Could not upload image.",
+    });
+  }
+}
 );
 
 router.post("/", requireAuth, async (req, res) => {
