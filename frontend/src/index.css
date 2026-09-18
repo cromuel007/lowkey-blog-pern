@@ -132,3 +132,46 @@ body {
 .foot-link:hover {
   color: #d4a017;
 }
+
+.like-reaction {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 10px;
+    height: 10px;
+    color: #d4a017;
+    fill: #d4a017;
+    stroke-width: 2;
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(0.1);
+    animation: like-burst 900ms ease-out forwards;
+}
+
+/* Explosion directions */
+.like-reaction-1 { --x: -45px; --y: -40px; }
+.like-reaction-2 { --x: -15px; --y: -55px; }
+.like-reaction-3 { --x: 25px; --y: -50px; }
+.like-reaction-4 { --x: 50px; --y: -20px; }
+.like-reaction-5 { --x: 45px; --y: 25px; }
+.like-reaction-6 { --x: 15px; --y: 50px; }
+.like-reaction-7 { --x: -30px; --y: 45px; }
+.like-reaction-8 { --x: -50px; --y: 15px; }
+.like-reaction-9 { --x: 5px; --y: -45px; }
+.like-reaction-10 { --x: -5px; --y: 35px; }
+
+@keyframes like-burst {
+    0% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(0.1);
+    }
+
+    100% {
+        opacity: 0;
+        transform:
+            translate(
+                calc(-50% + var(--x)),
+                calc(-50% + var(--y))
+            )
+            scale(1.7);
+    }
+}

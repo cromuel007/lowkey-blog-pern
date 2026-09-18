@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { ArrowLeft, ArrowRight, Share2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ArrowLeft, ArrowRight, Heart, MessageCircle, Share2, ThumbsUp } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import DOMPurify from "dompurify";
 import {
@@ -27,6 +27,16 @@ export default function PostPage() {
     const [error, setError] = useState("");
     const loadingDots = useLoadingDots();
 
+    const [liked, setLiked] = useState(false);
+    const [likeCount, setLikeCount] = useState(0);
+    const [isLiking, setIsLiking] = useState(false);
+    const [showLikeBurst, setShowLikeBurst] = useState(false);
+
+    const [showShareButtons, setShowShareButtons] = useState(false);
+
+    const [showCommentsComingSoon, setShowCommentsComingSoon] = useState(false);
+    const commentsRef = useRef<HTMLDivElement>(null);
+
     useEffect(() => {
         Promise.all([
             api.get<Post>(`/api/posts/${slug}`),
@@ -37,6 +47,10 @@ export default function PostPage() {
 
                 setPost(currentPost);
                 setPosts(postsResponse.data);
+
+                // Sync like state from the API
+                setLiked(currentPost.liked ?? false);
+                setLikeCount(currentPost.likeCount ?? 0);
 
                 const title =
                     currentPost.seoTitle || currentPost.title;
@@ -76,11 +90,7 @@ export default function PostPage() {
                 setMeta("name", "description", description);
 
                 setMeta("property", "og:title", title);
-                setMeta(
-                    "property",
-                    "og:description",
-                    description
-                );
+                setMeta("property", "og:description", description);
                 setMeta("property", "og:url", url);
                 setMeta("property", "og:type", "article");
                 setMeta("property", "og:image", image);
@@ -100,6 +110,23 @@ export default function PostPage() {
             })
             .catch(() => setError("Post not found."));
     }, [slug]);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (
+                commentsRef.current &&
+                !commentsRef.current.contains(event.target as Node)
+            ) {
+                setShowCommentsComingSoon(false);
+            }
+        };
+
+        document.addEventListener("mousedown", handleClickOutside);
+
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+        };
+    }, []);
 
     if (error) {
         return (
@@ -135,6 +162,62 @@ export default function PostPage() {
 
     const shareUrl =
         `https://blog.tubbylab.com/posts/${post.slug}`;
+
+    const trackShare = async (
+        platform: "facebook" | "linkedin" | "twitter"
+    ) => {
+        try {
+            await api.post(`/api/posts/${post.id}/share`, {
+                platform,
+            });
+
+            setPost((current) =>
+                current
+                    ? {
+                        ...current,
+                        shared: true,
+                        shareCount: (current.shareCount ?? 0) + 1,
+                    }
+                    : current
+            );
+        } catch (error) {
+            console.error("Failed to track share:", error);
+        }
+    };
+
+    const handleLike = async () => {
+        if (!post?.id || isLiking) return;
+
+        const previousLiked = liked;
+        const previousLikeCount = likeCount;
+
+        const nextLiked = !liked;
+        const nextLikeCount = liked
+            ? Math.max(0, likeCount - 1)
+            : likeCount + 1;
+
+        // Only show the emoji burst when liking
+        if (nextLiked) {
+            setShowLikeBurst(true);
+        }
+
+        // Update UI immediately
+        setLiked(nextLiked);
+        setLikeCount(nextLikeCount);
+
+        try {
+            setIsLiking(true);
+
+            await api.post(`/api/posts/${post.id}/like`);
+        } catch (error) {
+            console.error("Failed to update like:", error);
+
+            setLiked(previousLiked);
+            setLikeCount(previousLikeCount);
+        } finally {
+            setIsLiking(false);
+        }
+    };
 
     return (
         <article className="mx-auto my-4 mb-4 max-w-[1080px] leading-[1.8] sm:mt-14 sm:mb-16">
@@ -251,34 +334,151 @@ export default function PostPage() {
                 </div>
             </div>
 
-            {/* Share */}
+            {/* interactions */}
             <div className="mt-5 flex flex-wrap items-center justify-center gap-4 px-5 pt-5 -mb-5">
-                <div className="mr-2 inline-flex items-center gap-2 text-sm font-bold text-ink">
-                    <Share2 className="h-4 w-4" />
-                    Share
+
+                {/* Like */}
+                <button
+                    type="button"
+                    title={liked ? "Unlike" : "Like"}
+                    onClick={handleLike}
+                    disabled={isLiking}
+                    className="read-article-link inline-flex items-center gap-2"
+                >
+                    <span className="relative inline-flex h-8 w-8 items-center justify-center">
+                        {showLikeBurst && (
+                            <span
+                                className="pointer-events-none absolute inset-0 z-20"
+                                onAnimationEnd={() => setShowLikeBurst(false)}
+                            >
+                                <Heart className="like-reaction like-reaction-1" />
+                                <Heart className="like-reaction like-reaction-2" />
+                                <Heart className="like-reaction like-reaction-3" />
+                                <Heart className="like-reaction like-reaction-4" />
+                                <Heart className="like-reaction like-reaction-5" />
+                                <Heart className="like-reaction like-reaction-6" />
+                                <Heart className="like-reaction like-reaction-7" />
+                                <Heart className="like-reaction like-reaction-8" />
+                                <Heart className="like-reaction like-reaction-9" />
+                                <Heart className="like-reaction like-reaction-10" />
+                            </span>
+                        )}
+
+                        <span
+                            className={`inline-flex h-8 w-8 items-center justify-center rounded-full border transition-colors ${liked
+                                ? "border-[#d4a017] bg-[#d4a017]"
+                                : "border-slate hover:border-[#d4a017]"
+                                }`}
+                        >
+                            <ThumbsUp
+                                className={`h-4 w-4 stroke-[2] transition-colors ${liked ? "text-white" : ""
+                                    }`}
+                            />
+                        </span>
+                    </span>
+
+                    <span title="Likes" className="text-xs">
+                        {likeCount}
+                    </span>
+                </button>
+
+                {/* Comments */}
+                <div ref={commentsRef} className="relative inline-flex items-center gap-2">
+                    <span className="relative inline-flex">
+                        {showCommentsComingSoon && (
+                            <div className="absolute bottom-full left-1/2 z-20 mb-3 -translate-x-1/2 whitespace-nowrap rounded-lg border border-slate bg-white px-3 py-2 text-xs font-medium text-ink shadow-lg">
+                                Comments coming soon! 🤫
+
+                                {/* Speech bubble tail */}
+                                <span className="absolute left-1/2 top-full -translate-x-1/2">
+                                    {/* Border */}
+                                    <span className="absolute left-1/2 top-0 -translate-x-1/2 border-l-[7px] border-r-[7px] border-t-[7px] border-l-transparent border-r-transparent border-t-slate" />
+
+                                    {/* White fill */}
+                                    <span className="absolute left-1/2 top-[-1px] -translate-x-1/2 border-l-[6px] border-r-[6px] border-t-[6px] border-l-transparent border-r-transparent border-t-white" />
+                                </span>
+                            </div>
+                        )}
+
+                        <button
+                            type="button"
+                            title="Comments"
+                            onClick={() => {
+                                setShowCommentsComingSoon((previous) => !previous);
+                            }}
+                            className="read-article-link inline-flex items-center"
+                        >
+                            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate transition-colors hover:border-[#d4a017]">
+                                <MessageCircle className="h-4 w-4 stroke-[2]" />
+                            </span>
+                        </button>
+                    </span>
+
+                    <span title="Comments" className="text-xs">
+                        {post.commentCount ?? 0}
+                    </span>
                 </div>
 
-                <FacebookShareButton
-                    url={shareUrl}
-                    title={post.title}
+                {/* Shares */}
+                <button
+                    type="button"
+                    title="Shares"
+                    onClick={() => setShowShareButtons((previous) => !previous)}
+                    className="read-article-link inline-flex items-center gap-2"
                 >
-                    <FacebookIcon size={32} round />
-                </FacebookShareButton>
+                    <span
+                        className={`inline-flex h-8 w-8 items-center justify-center rounded-full border transition-colors ${post.shared
+                            ? "border-[#d4a017] bg-[#d4a017]"
+                            : "border-slate hover:border-[#d4a017]"
+                            }`}
+                    >
+                        <Share2
+                            className={`h-4 w-4 stroke-[2] transition-colors ${post.shared ? "text-white" : ""
+                                }`}
+                        />
+                    </span>
 
-                <LinkedinShareButton
-                    url={shareUrl}
-                    title={post.title}
-                >
-                    <LinkedinIcon size={32} round />
-                </LinkedinShareButton>
+                    <span title="Shares" className="text-xs">
+                        {post.shareCount ?? 0}
+                    </span>
+                </button>
 
-                <TwitterShareButton
-                    url={shareUrl}
-                    title={post.title}
-                >
-                    <TwitterIcon size={32} round />
-                </TwitterShareButton>
+                {showShareButtons && (
+                    <div
+                        className="flex basis-full items-center justify-center gap-4 animate-in fade-in slide-in-from-bottom-2 duration-300 sm:basis-auto"
+                    >
+                        <div className="inline-flex items-center gap-2 text-sm font-bold text-ink sm:mb-0">
+                            <Share2 className="h-4 w-4" />
+                            Share with
+                        </div>
+
+                        <FacebookShareButton
+                            url={shareUrl}
+                            title={post.title}
+                            onClick={() => trackShare("facebook")}
+                        >
+                            <FacebookIcon size={32} round />
+                        </FacebookShareButton>
+
+                        <LinkedinShareButton
+                            url={shareUrl}
+                            title={post.title}
+                            onClick={() => trackShare("linkedin")}
+                        >
+                            <LinkedinIcon size={32} round />
+                        </LinkedinShareButton>
+
+                        <TwitterShareButton
+                            url={shareUrl}
+                            title={post.title}
+                            onClick={() => trackShare("twitter")}
+                        >
+                            <TwitterIcon size={32} round />
+                        </TwitterShareButton>
+                    </div>
+                )}
             </div>
+
 
             {/* Previous / Next */}
             <div className="mt-14 grid grid-cols-1 gap-4 border-t border-line pt-0 sm:grid-cols-2 sm:pt-8 sm:-mb-5">

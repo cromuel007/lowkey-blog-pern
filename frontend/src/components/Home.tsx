@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Heart, MessageCircle, Share2, ThumbsUp } from "lucide-react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
 import type { Post } from "../types";
@@ -137,13 +137,41 @@ export default function Home() {
                                             : ""}
                                     </p>
 
-                                    <Link
-                                        to={`/posts/${post.slug}`}
-                                        className="read-article-link mt-auto inline-flex items-center gap-1 pt-5 font-bold"
-                                    >
-                                        Read article
-                                        <ArrowRight className="h-4 w-4" />
-                                    </Link>
+                                    <div className="mt-auto flex items-center justify-between pt-5">
+                                        <Link
+                                            to={`/posts/${post.slug}`}
+                                            className="read-article-link inline-flex items-center gap-1 font-bold"
+                                        >
+                                            Read article
+                                            <ArrowRight className="h-4 w-4" />
+                                        </Link>
+
+                                        <div className="flex items-center gap-4 text-xs text-muted">
+                                            <span
+                                                title="Likes"
+                                                className="read-article-link inline-flex items-center gap-1"
+                                            >
+                                                <ThumbsUp className="h-4 w-4" />
+                                                {post.likeCount ?? 0}
+                                            </span>
+
+                                            <span
+                                                title="Comments"
+                                                className="read-article-link inline-flex items-center gap-1"
+                                            >
+                                                <MessageCircle className="h-4 w-4" />
+                                                {post.commentCount ?? 0}
+                                            </span>
+
+                                            <span
+                                                title="Shares"
+                                                className="read-article-link inline-flex items-center gap-1"
+                                            >
+                                                <Share2 className="h-4 w-4" />
+                                                {post.shareCount ?? 0}
+                                            </span>
+                                        </div>
+                                    </div>
                                 </div>
                             </article>
                         ))}

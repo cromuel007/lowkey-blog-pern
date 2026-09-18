@@ -12,6 +12,11 @@ export interface Post {
   createdAt: string;
   category?: { id: number; name: string; slug: string } | null;
   tags: { tag: { id: number; name: string; slug: string } }[];
+  shared: boolean;
+  shareCount: number;
+  commentCount: number;
+  liked: boolean;
+  likeCount: number;
 }
 
 export interface Category {
