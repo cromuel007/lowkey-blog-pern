@@ -399,36 +399,32 @@ router.post("/:id/share", async (req, res) => {
       });
     }
 
-    const result = await prisma.$transaction(async (tx) => {
-      const share = await tx.postShare.create({
-        data: {
-          postId,
-          platform: platform.trim(),
-          ip_address: ipAddress,
-        },
-      });
-
-      const updatedPost = await tx.post.update({
-        where: {
-          id: postId,
-        },
-        data: {
-          shareCount: {
-            increment: 1,
-          },
-        },
-        select: {
-          shareCount: true,
-        },
-      });
-
-      return {
-        share,
-        shareCount: updatedPost.shareCount,
-      };
+    const share = await prisma.postShare.create({
+      data: {
+        postId,
+        platform: platform.trim(),
+        ip_address: ipAddress,
+      },
     });
 
-    return res.status(201).json(result);
+    const updatedPost = await prisma.post.update({
+      where: {
+        id: postId,
+      },
+      data: {
+        shareCount: {
+          increment: 1,
+        },
+      },
+      select: {
+        shareCount: true,
+      },
+    });
+
+    return res.status(201).json({
+      share,
+      shareCount: updatedPost.shareCount,
+    });
   } catch (error) {
     console.error("Failed to track post share:", error);
 
@@ -474,56 +470,27 @@ router.post("/:id/like", async (req, res) => {
       });
     }
 
-    const result = await prisma.$transaction(async (tx) => {
-      const existingLike = await tx.postLike.findFirst({
+    const existingLike = await prisma.postLike.findFirst({
+      where: {
+        postId,
+        ip_address: ipAddress,
+      },
+    });
+
+    if (existingLike) {
+      await prisma.postLike.delete({
         where: {
-          postId,
-          ip_address: ipAddress,
+          id: existingLike.id,
         },
       });
 
-      if (existingLike) {
-        await tx.postLike.delete({
-          where: {
-            id: existingLike.id,
-          },
-        });
-
-        const updatedPost = await tx.post.update({
-          where: {
-            id: postId,
-          },
-          data: {
-            likeCount: {
-              decrement: 1,
-            },
-          },
-          select: {
-            likeCount: true,
-          },
-        });
-
-        return {
-          liked: false,
-          likeCount: updatedPost.likeCount,
-        };
-      }
-
-      await tx.postLike.create({
-        data: {
-          postId,
-          platform: "",
-          ip_address: ipAddress,
-        },
-      });
-
-      const updatedPost = await tx.post.update({
+      const updatedPost = await prisma.post.update({
         where: {
           id: postId,
         },
         data: {
           likeCount: {
-            increment: 1,
+            decrement: 1,
           },
         },
         select: {
@@ -531,13 +498,38 @@ router.post("/:id/like", async (req, res) => {
         },
       });
 
-      return {
-        liked: true,
+      return res.status(200).json({
+        liked: false,
         likeCount: updatedPost.likeCount,
-      };
+      });
+    }
+
+    await prisma.postLike.create({
+      data: {
+        postId,
+        platform: "",
+        ip_address: ipAddress,
+      },
     });
 
-    return res.status(200).json(result);
+    const updatedPost = await prisma.post.update({
+      where: {
+        id: postId,
+      },
+      data: {
+        likeCount: {
+          increment: 1,
+        },
+      },
+      select: {
+        likeCount: true,
+      },
+    });
+
+    return res.status(200).json({
+      liked: true,
+      likeCount: updatedPost.likeCount,
+    });
   } catch (error) {
     console.error("Failed to toggle post like:", error);
 
