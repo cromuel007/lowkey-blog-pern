@@ -1764,13 +1764,18 @@ router.delete("/comments/:id", requireAuth, async (req, res) => {
     // Count all approved comments that will be deleted.
     const approvedCommentsDeleted =
       (comment.is_approved ? 1 : 0) +
-      replies.filter((reply) => reply.is_approved).length;
+      replies.filter(
+        (reply: typeof replies[number]) => reply.is_approved
+      ).length;
 
     // Get total likes from the comment and its replies.
     const totalCommentLikes =
       comment.likeCount +
       replies.reduce(
-        (total, reply) => total + reply.likeCount,
+        (
+          total: number,
+          reply: typeof replies[number]
+        ) => total + reply.likeCount,
         0
       );
 
