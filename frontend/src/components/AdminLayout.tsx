@@ -94,7 +94,7 @@ export default function AdminLayout({
                         </Link>
 
                         <Link
-                            to="/admin/comments"
+                            to="/admin/categories"
                             className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${isCategories
                                 ? "bg-accent-soft text-accent"
                                 : "text-slate hover:bg-surface-alt hover:text-ink"

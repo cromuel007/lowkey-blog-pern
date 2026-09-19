@@ -4,6 +4,7 @@ import cors from "cors";
 import authRouter from "./routes/auth.js";
 import postsRouter from "./routes/posts.js";
 import metaRouter from "./routes/meta.js";
+import categoriesRouter from "./routes/categories.js";
 
 const app = express();
 const port = Number(process.env.PORT || 3001);
@@ -21,6 +22,7 @@ app.get("/api/health", (_req, res) => {
 
 app.use("/api/auth", authRouter);
 app.use("/api/posts", postsRouter);
+app.use("/api/categories", categoriesRouter);
 app.use("/api/meta", metaRouter);
 
 app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
