@@ -18,6 +18,7 @@ import { api } from "../api";
 import type { Post } from "../types";
 import { getAsset } from "../utils/useAssets";
 import { useLoadingDots } from "../hooks/useLoadingDots";
+import Comments from "../components/Comments";
 
 export default function PostPage() {
     const { slug } = useParams();
@@ -383,38 +384,23 @@ export default function PostPage() {
                 </button>
 
                 {/* Comments */}
-                <div ref={commentsRef} className="relative inline-flex items-center gap-2">
-                    <span className="relative inline-flex">
-                        {showCommentsComingSoon && (
-                            <div className="absolute bottom-full left-1/2 z-20 mb-3 -translate-x-1/2 whitespace-nowrap rounded-lg border border-slate bg-white px-3 py-2 text-xs font-medium text-ink shadow-lg">
-                                Comments coming soon! 🤫
+                <div className="relative inline-flex items-center gap-2">
+                    <button
+                        type="button"
+                        title="Comments"
+                        onClick={() =>
+                            setShowCommentsComingSoon(
+                                (previous) => !previous
+                            )
+                        }
+                        className="read-article-link inline-flex items-center"
+                    >
+                        <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate transition-colors hover:border-[#d4a017]">
+                            <MessageCircle className="h-4 w-4 stroke-[2]" />
+                        </span>
+                    </button>
 
-                                {/* Speech bubble tail */}
-                                <span className="absolute left-1/2 top-full -translate-x-1/2">
-                                    {/* Border */}
-                                    <span className="absolute left-1/2 top-0 -translate-x-1/2 border-l-[7px] border-r-[7px] border-t-[7px] border-l-transparent border-r-transparent border-t-slate" />
-
-                                    {/* White fill */}
-                                    <span className="absolute left-1/2 top-[-1px] -translate-x-1/2 border-l-[6px] border-r-[6px] border-t-[6px] border-l-transparent border-r-transparent border-t-white" />
-                                </span>
-                            </div>
-                        )}
-
-                        <button
-                            type="button"
-                            title="Comments"
-                            onClick={() => {
-                                setShowCommentsComingSoon((previous) => !previous);
-                            }}
-                            className="read-article-link inline-flex items-center"
-                        >
-                            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate transition-colors hover:border-[#d4a017]">
-                                <MessageCircle className="h-4 w-4 stroke-[2]" />
-                            </span>
-                        </button>
-                    </span>
-
-                    <span title="Comments" className="text-xs">
+                    <span className="text-xs">
                         {post.commentCount ?? 0}
                     </span>
                 </div>
@@ -479,6 +465,8 @@ export default function PostPage() {
                 )}
             </div>
 
+            {/* Comments section */}
+            {showCommentsComingSoon && <Comments />}
 
             {/* Previous / Next */}
             <div className="mt-14 grid grid-cols-1 gap-4 border-t border-line pt-0 sm:grid-cols-2 sm:pt-8 sm:-mb-5">
