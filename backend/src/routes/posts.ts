@@ -1721,7 +1721,7 @@ router.put("/:id", requireAuth, async (req, res) => {
   }
 });
 
-router.delete( "/comments/:id", requireAuth, async (req, res) => {
+router.delete("/comments/:id", requireAuth, async (req, res) => {
     try {
       const id = Number(req.params.id);
 
@@ -1740,6 +1740,7 @@ router.delete( "/comments/:id", requireAuth, async (req, res) => {
             id: true,
             postId: true,
             is_approved: true,
+            likeCount: true,
           },
         });
 
@@ -1749,29 +1750,41 @@ router.delete( "/comments/:id", requireAuth, async (req, res) => {
         });
       }
 
-      if (comment.is_approved) {
-        await prisma.$transaction([
-          prisma.postComment.delete({
-            where: {
-              id,
-            },
-          }),
+      // Delete the comment.
+      // Related PostCommentLike records are automatically
+      // deleted because of onDelete: Cascade.
+      await prisma.postComment.delete({
+        where: {
+          id,
+        },
+      });
 
-          prisma.post.update({
-            where: {
-              id: comment.postId,
-            },
-            data: {
-              commentCount: {
-                decrement: 1,
-              },
-            },
-          }),
-        ]);
-      } else {
-        await prisma.postComment.delete({
+      // If the comment was approved, update the post counts.
+      if (comment.is_approved) {
+        await prisma.post.update({
           where: {
-            id,
+            id: comment.postId,
+          },
+          data: {
+            commentCount: {
+              decrement: 1,
+            },
+            likeCount: {
+              decrement: comment.likeCount,
+            },
+          },
+        });
+      } else if (comment.likeCount > 0) {
+        // Even an unapproved comment may have likes,
+        // so those likes still need to be removed from the post count.
+        await prisma.post.update({
+          where: {
+            id: comment.postId,
+          },
+          data: {
+            likeCount: {
+              decrement: comment.likeCount,
+            },
           },
         });
       }
