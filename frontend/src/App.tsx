@@ -5,6 +5,7 @@ import AdminLayout from "./components/AdminLayout";
 import AdminLogin from "./components/AdminLogin";
 import AdminDashboard from "./components/AdminDashboard";
 import AdminPosts from "./components/AdminPosts";
+import AdminComments from "./components/AdminComments";
 import AdminPostNew from "./components/AdminPostNew";
 import AdminPostEdit from "./components/AdminPostEdit";
 
@@ -104,6 +105,7 @@ export default function App() {
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/admin/posts" element={<AdminPosts />} />
+        <Route path="/admin/comments" element={<AdminComments />} />
         <Route path="/admin/posts/new" element={<AdminPostNew />} />
         <Route path="/admin/posts/:id/edit" element={<AdminPostEdit />} />
       </Routes>

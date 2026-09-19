@@ -75,6 +75,224 @@ const replyInput = z.object({
   content: z.string().trim().min(1).max(5000),
 });
 
+router.get("/comments", async (req, res) => {
+  const isAdmin = req.query.admin === "true";
+
+  const page = Math.max(
+    Number.parseInt(req.query.page as string, 10) || 1,
+    1
+  );
+
+  const pageSize = Math.min(
+    Math.max(
+      Number.parseInt(req.query.pageSize as string, 10) || 10,
+      1
+    ),
+    100
+  );
+
+  const search =
+    typeof req.query.search === "string"
+      ? req.query.search.trim()
+      : "";
+
+  const sortByValue = req.query.sortBy as string;
+
+  const sortOrder =
+    req.query.sortOrder === "asc" ? "asc" : "desc";
+
+  const allowedSorts = [
+    "post",
+    "author",
+    "content",
+    "likeCount",
+    "is_approved",
+    "createdAt",
+  ] as const;
+
+  type SortBy = (typeof allowedSorts)[number];
+
+  const sortBy: SortBy = allowedSorts.includes(
+    sortByValue as SortBy
+  )
+    ? (sortByValue as SortBy)
+    : "createdAt";
+
+  const where = {
+    ...(search
+      ? {
+        OR: [
+          {
+            author: {
+              contains: search,
+              mode: "insensitive" as const,
+            },
+          },
+          {
+            content: {
+              contains: search,
+              mode: "insensitive" as const,
+            },
+          },
+          {
+            post: {
+              title: {
+                contains: search,
+                mode: "insensitive" as const,
+              },
+            },
+          },
+        ],
+      }
+      : {}),
+  };
+
+  type OrderByItem =
+    | {
+      author: "asc" | "desc";
+    }
+    | {
+      content: "asc" | "desc";
+    }
+    | {
+      likeCount: "asc" | "desc";
+    }
+    | {
+      is_approved: "asc" | "desc";
+    }
+    | {
+      createdAt: "asc" | "desc";
+    }
+    | {
+      post: {
+        title: "asc" | "desc";
+      };
+    }
+    | {
+      id: "asc" | "desc";
+    };
+
+  let orderBy: OrderByItem[];
+
+  switch (sortBy) {
+    case "post":
+      orderBy = [
+        {
+          post: {
+            title: sortOrder,
+          },
+        },
+        {
+          id: "desc",
+        },
+      ];
+      break;
+
+    case "author":
+      orderBy = [
+        {
+          author: sortOrder,
+        },
+        {
+          id: "desc",
+        },
+      ];
+      break;
+
+    case "content":
+      orderBy = [
+        {
+          content: sortOrder,
+        },
+        {
+          id: "desc",
+        },
+      ];
+      break;
+
+    case "likeCount":
+      orderBy = [
+        {
+          likeCount: sortOrder,
+        },
+        {
+          id: "desc",
+        },
+      ];
+      break;
+
+    case "is_approved":
+      orderBy = [
+        {
+          is_approved: sortOrder,
+        },
+        {
+          id: "desc",
+        },
+      ];
+      break;
+
+    case "createdAt":
+    default:
+      orderBy = [
+        {
+          createdAt: sortOrder,
+        },
+        {
+          id: "desc",
+        },
+      ];
+      break;
+  }
+
+  const [comments, total] = await Promise.all([
+    prisma.postComment.findMany({
+      where,
+      orderBy,
+      skip: isAdmin
+        ? (page - 1) * pageSize
+        : undefined,
+      take: isAdmin
+        ? pageSize
+        : undefined,
+      include: {
+        post: {
+          select: {
+            id: true,
+            title: true,
+            slug: true,
+          },
+        },
+        parent: {
+          select: {
+            id: true,
+            author: true,
+          },
+        },
+      },
+    }),
+
+    isAdmin
+      ? prisma.postComment.count({ where })
+      : Promise.resolve(0),
+  ]);
+
+  if (!isAdmin) {
+    return res.json(comments);
+  }
+
+  return res.json({
+    comments,
+    total,
+    page,
+    pageSize,
+    totalPages: Math.max(
+      1,
+      Math.ceil(total / pageSize)
+    ),
+  });
+});
+
 router.get("/", async (req, res) => {
   const isAdmin = req.query.admin === "true";
   const publishedOnly = !isAdmin;
@@ -325,25 +543,25 @@ router.get("/:slug/comments", async (req, res) => {
           include: {
             likes: ipAddress
               ? {
-                  where: {
-                    ip_address: ipAddress,
-                  },
-                  select: {
-                    id: true,
-                  },
-                }
+                where: {
+                  ip_address: ipAddress,
+                },
+                select: {
+                  id: true,
+                },
+              }
               : false,
           },
         },
         likes: ipAddress
           ? {
-              where: {
-                ip_address: ipAddress,
-              },
-              select: {
-                id: true,
-              },
-            }
+            where: {
+              ip_address: ipAddress,
+            },
+            select: {
+              id: true,
+            },
+          }
           : false,
       },
     });
@@ -729,50 +947,50 @@ router.post("/:id/comments/:commentId/replies", async (req, res) => {
 });
 
 router.get("/comments/approve/:approvalToken", async (req, res) => {
-    const { approvalToken } = req.params;
+  const { approvalToken } = req.params;
 
-    try {
-      const comment = await prisma.postComment.findUnique({
+  try {
+    const comment = await prisma.postComment.findUnique({
+      where: {
+        approval_token: approvalToken,
+      },
+      select: {
+        id: true,
+        postId: true,
+        is_approved: true,
+      },
+    });
+
+    if (!comment || comment.is_approved) {
+      return res.status(404).send(
+        "Invalid or expired approval link."
+      );
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.postComment.update({
         where: {
-          approval_token: approvalToken,
+          id: comment.id,
         },
-        select: {
-          id: true,
-          postId: true,
+        data: {
           is_approved: true,
+          approval_token: null,
         },
       });
 
-      if (!comment || comment.is_approved) {
-        return res.status(404).send(
-          "Invalid or expired approval link."
-        );
-      }
-
-      await prisma.$transaction(async (tx) => {
-        await tx.postComment.update({
-          where: {
-            id: comment.id,
+      await tx.post.update({
+        where: {
+          id: comment.postId,
+        },
+        data: {
+          commentCount: {
+            increment: 1,
           },
-          data: {
-            is_approved: true,
-            approval_token: null,
-          },
-        });
-
-        await tx.post.update({
-          where: {
-            id: comment.postId,
-          },
-          data: {
-            commentCount: {
-              increment: 1,
-            },
-          },
-        });
+        },
       });
+    });
 
-      return res.send(`
+    return res.send(`
         <!DOCTYPE html>
         <html>
           <head>
@@ -796,17 +1014,17 @@ router.get("/comments/approve/:approvalToken", async (req, res) => {
           </body>
         </html>
       `);
-    } catch (error) {
-      console.error(
-        "Failed to approve comment:",
-        error
-      );
+  } catch (error) {
+    console.error(
+      "Failed to approve comment:",
+      error
+    );
 
-      return res.status(500).send(
-        "Could not approve comment."
-      );
-    }
+    return res.status(500).send(
+      "Could not approve comment."
+    );
   }
+}
 );
 
 router.post("/:id/comments/:commentId/like", async (req, res) => {
@@ -1502,6 +1720,64 @@ router.put("/:id", requireAuth, async (req, res) => {
 
     res.status(409).json({
       message: "Could not update post.",
+    });
+  }
+});
+
+router.delete("/comments/:id", requireAuth, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+
+    if (!Number.isInteger(id)) {
+      return res.status(400).json({
+        message: "Invalid comment ID.",
+      });
+    }
+
+    const comment = await prisma.postComment.findUnique({
+      where: {
+        id,
+      },
+      select: {
+        id: true,
+        postId: true,
+        is_approved: true,
+      },
+    });
+
+    if (!comment) {
+      return res.status(404).json({
+        message: "Comment not found.",
+      });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.postComment.delete({
+        where: {
+          id,
+        },
+      });
+
+      if (comment.is_approved) {
+        await tx.post.update({
+          where: {
+            id: comment.postId,
+          },
+          data: {
+            commentCount: {
+              decrement: 1,
+            },
+          },
+        });
+      }
+    });
+
+    res.status(204).send();
+  } catch (error) {
+    console.error("Delete comment error:", error);
+
+    res.status(500).json({
+      message: "Could not delete comment.",
     });
   }
 });

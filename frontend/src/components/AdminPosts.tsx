@@ -88,6 +88,18 @@ export default function Admin() {
         load(currentPage).catch(() => navigate("/admin/login"));
     }, [currentPage, sortBy, sortOrder, search]);
 
+    useEffect(() => {
+        if (!message) {
+            return;
+        }
+
+        const timer = setTimeout(() => {
+            setMessage("");
+        }, 3000);
+
+        return () => clearTimeout(timer);
+    }, [message]);
+
     function handleSort(
         column: "title" | "category" | "published" | "publishedAt"
     ) {
@@ -202,6 +214,13 @@ export default function Admin() {
                     New Post
                 </Link>
             </div>
+
+
+            {message && (
+                <div className="fixed right-5 top-5 z-50 rounded-lg border border-[#d4a017] bg-white px-4 py-3 text-sm font-semibold text-ink shadow-lg">
+                    {message}
+                </div>
+            )}
 
             {posts.length === 0 ? (
                 <div className="rounded-lg bg-white px-7 py-12 text-center shadow-sm">

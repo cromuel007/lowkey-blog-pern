@@ -1,8 +1,12 @@
 import {
     ExternalLink,
     FileText,
+    Layers,
     LayoutDashboard,
     LogOut,
+    MessageCircle,
+    Tags,
+    Users,
 } from "lucide-react";
 import {
     Link,
@@ -26,6 +30,10 @@ export default function AdminLayout({
 
     const isDashboard = location.pathname === "/admin";
     const isPosts = location.pathname.startsWith("/admin/posts");
+    const isComments = location.pathname.startsWith("/admin/comments");
+    const isCategories = location.pathname.startsWith("/admin/categories");
+    const isTags = location.pathname.startsWith("/admin/fags");
+    const isUsers = location.pathname.startsWith("/admin/users");
 
     return (
         <div className="min-h-screen bg-surface">
@@ -72,6 +80,50 @@ export default function AdminLayout({
                         >
                             <FileText className="h-4 w-4" />
                             Posts
+                        </Link>
+
+                        <Link
+                            to="/admin/comments"
+                            className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${isComments
+                                ? "bg-accent-soft text-accent"
+                                : "text-slate hover:bg-surface-alt hover:text-ink"
+                                }`}
+                        >
+                            <MessageCircle className="h-4 w-4" />
+                            Comments
+                        </Link>
+
+                        <Link
+                            to="/admin/comments"
+                            className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${isCategories
+                                ? "bg-accent-soft text-accent"
+                                : "text-slate hover:bg-surface-alt hover:text-ink"
+                                }`}
+                        >
+                            <Layers className="h-4 w-4" />
+                            Categories
+                        </Link>
+
+                        <Link
+                            to="/admin/comments"
+                            className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${isTags
+                                ? "bg-accent-soft text-accent"
+                                : "text-slate hover:bg-surface-alt hover:text-ink"
+                                }`}
+                        >
+                            <Tags className="h-4 w-4" />
+                            Tags
+                        </Link>
+
+                        <Link
+                            to="/admin/comments"
+                            className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${isUsers
+                                ? "bg-accent-soft text-accent"
+                                : "text-slate hover:bg-surface-alt hover:text-ink"
+                                }`}
+                        >
+                            <Users className="h-4 w-4" />
+                            Users
                         </Link>
                     </nav>
                 </div>
