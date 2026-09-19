@@ -863,39 +863,41 @@ export default function Comments({
     return (
         <div className="mt-8 border-t border-line pt-6">
             <div className="mx-auto max-w-[760px]">
-                <h2 className="mb-5 text-xl font-bold text-ink">
-                    Comments
-                    {commentCount > 0 && (
-                        <span className="ml-2 text-sm font-medium text-muted">
-                            ({commentCount})
-                        </span>
-                    )}
-                </h2>
+                <div className="mb-5 flex items-center justify-between">
+                    <h2 className="text-xl font-bold text-ink">
+                        Comments
+                        {commentCount > 0 && (
+                            <span className="ml-2 text-sm font-medium text-muted">
+                                ({commentCount})
+                            </span>
+                        )}
+                    </h2>
 
-                {/* New comment */}
-                <div className="flex gap-3">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-line bg-surface-alt text-sm font-bold text-white">
-                        <CountryFlag
-                            countryCode={null}
-                            entryId={0}
-                        />
-                    </div>
-
-                    <div className="flex-1">
+                    {!showCommentForm && (
                         <button
                             type="button"
-                            onClick={() =>
-                                setShowCommentForm((prev) => !prev)
-                            }
-                            className="mb-3 rounded-full border border-line bg-surface-alt px-4 py-2 text-sm font-semibold text-ink transition-colors hover:border-[#d4a017] hover:text-[#d4a017]"
+                            onClick={() => setShowCommentForm((prev) => !prev)}
+                            className="rounded-full border border-line bg-surface-alt px-4 py-2 text-sm font-semibold text-ink transition-colors hover:border-[#d4a017] hover:text-[#d4a017]"
                         >
-                            {showCommentForm
-                                ? "Cancel Comment"
-                                : "Post a Comment"}
+                            Post a Comment
                         </button>
+                    )}
+                </div>
 
-                        {showCommentForm && (
-                            <>
+                {/* New comment */}
+                {showCommentForm && (
+                    <>
+                        <div className="flex gap-3">
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-line bg-surface-alt text-sm font-bold text-white">
+                                <CountryFlag
+                                    countryCode={null}
+                                    entryId={0}
+                                />
+                            </div>
+
+                            <div className="flex-1">
+
+
                                 <input
                                     type="text"
                                     value={commentAuthor}
@@ -922,7 +924,15 @@ export default function Comments({
                                     className="w-full resize-y rounded-xl border border-line bg-surface-alt px-4 py-3 text-sm text-ink outline-none transition-colors focus:border-[#d4a017] disabled:opacity-60"
                                 />
 
-                                <div className="mt-2 flex justify-end">
+                                <div className="mt-2 flex justify-end gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowCommentForm((prev) => !prev)}
+                                        className="rounded-full px-4 py-2 text-sm font-bold text-muted hover:text-ink disabled:opacity-50"
+                                    >
+                                        Cancel
+                                    </button>
+
                                     <button
                                         type="button"
                                         onClick={addComment}
@@ -945,10 +955,11 @@ export default function Comments({
                                         )}
                                     </button>
                                 </div>
-                            </>
-                        )}
-                    </div>
-                </div>
+
+                            </div>
+                        </div>
+                    </>
+                )}
 
                 {/* Main comment status messages */}
                 {pendingMessage && (
@@ -964,7 +975,7 @@ export default function Comments({
                 )}
 
                 {/* Comments */}
-                <div className="mt-8 space-y-6">
+                <div className="mt-6 space-y-6">
                     {isLoading ? (
                         <p className="py-6 text-center text-sm text-muted">
                             Loading comments...
