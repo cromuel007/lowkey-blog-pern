@@ -420,9 +420,9 @@ export default function PostPage() {
                     <button
                         type="button"
                         title="Comments"
-                        onClick={() =>
-                            setShowComments((previous) => !previous)
-                        }
+                        // onClick={() =>
+                        //     setShowComments((previous) => !previous)
+                        // }
                         className="read-article-link inline-flex items-center"
                     >
                         <span
