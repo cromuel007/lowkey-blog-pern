@@ -114,22 +114,26 @@ export default function App() {
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/admin/posts" element={<AdminPosts />} />
+        <Route path="/admin/posts/new" element={<AdminPostNew />} />
+        <Route path="/admin/posts/:id/edit" element={<AdminPostEdit />} />
+
+        {/* Admin Manage Comments */}
         <Route path="/admin/comments" element={<AdminComments />} />
 
+        {/* Admin Manage Categories */}
         <Route path="/admin/categories" element={<AdminCategories />} />
         <Route path="/admin/categories/new" element={<AdminCategoriesForm />} />
         <Route path="/admin/categories/:id/edit" element={<AdminCategoriesForm />} />
 
+        {/* Admin Manage Tags */}
         <Route path="/admin/tags" element={<AdminTags />} />
         <Route path="/admin/tags/new" element={<AdminTagsForm />} />
         <Route path="/admin/tags/:id/edit" element={<AdminTagsForm />} />
 
+        {/* Admin Manage Users */}
         <Route path="/admin/users" element={<AdminUsers />} />
         <Route path="/admin/users/new" element={<AdminUsersForm />} />
         <Route path="/admin/users/:id/edit" element={<AdminUsersForm />} />
-
-        <Route path="/admin/posts/new" element={<AdminPostNew />} />
-        <Route path="/admin/posts/:id/edit" element={<AdminPostEdit />} />
       </Routes>
     </Layout>
   );
