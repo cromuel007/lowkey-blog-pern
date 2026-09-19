@@ -9,7 +9,6 @@ import {
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/auth.js";
 import { s3, STORAGE_BUCKET } from "../lib/s3.js";
-import { Prisma } from "@prisma/client";
 import geoip from "geoip-lite";
 import { Resend } from "resend";
 
@@ -566,26 +565,34 @@ router.get("/:slug/comments", async (req, res) => {
       },
     });
 
-    const formattedComments = comments.map((comment) => ({
-      id: comment.id,
-      author: comment.author,
-      content: comment.content,
-      countryCode: getCountryCodeFromIp(comment.ip_address),
-      likes: comment.likeCount,
-      liked: Array.isArray(comment.likes)
-        ? comment.likes.length > 0
-        : false,
-      replies: comment.replies.map((reply) => ({
-        id: reply.id,
-        author: reply.author,
-        content: reply.content,
-        countryCode: getCountryCodeFromIp(reply.ip_address),
-        likes: reply.likeCount,
-        liked: Array.isArray(reply.likes)
-          ? reply.likes.length > 0
+    const formattedComments = comments.map(
+      (comment: typeof comments[number]) => ({
+        id: comment.id,
+        author: comment.author,
+        content: comment.content,
+        countryCode: getCountryCodeFromIp(
+          comment.ip_address
+        ),
+        likes: comment.likeCount,
+        liked: Array.isArray(comment.likes)
+          ? comment.likes.length > 0
           : false,
-      })),
-    }));
+        replies: comment.replies.map(
+          (reply: typeof comment.replies[number]) => ({
+            id: reply.id,
+            author: reply.author,
+            content: reply.content,
+            countryCode: getCountryCodeFromIp(
+              reply.ip_address
+            ),
+            likes: reply.likeCount,
+            liked: Array.isArray(reply.likes)
+              ? reply.likes.length > 0
+              : false,
+          })
+        ),
+      })
+    );
 
     const commentCount = await prisma.postComment.count({
       where: {
@@ -762,235 +769,238 @@ router.post("/:id/comments", async (req, res) => {
 });
 
 router.post("/:id/comments/:commentId/replies", async (req, res) => {
-  const postId = Number(req.params.id);
-  const commentId = Number(req.params.commentId);
+    const postId = Number(req.params.id);
+    const commentId = Number(req.params.commentId);
 
-  if (
-    !Number.isInteger(postId) ||
-    postId <= 0 ||
-    !Number.isInteger(commentId) ||
-    commentId <= 0
-  ) {
-    return res.status(400).json({
-      message: "Invalid post or comment ID.",
-    });
-  }
-
-  const parsed = replyInput.safeParse(req.body);
-
-  if (!parsed.success) {
-    return res.status(400).json({
-      message: "Invalid reply data.",
-    });
-  }
-
-  const forwardedFor = req.headers["x-forwarded-for"];
-
-  const ipAddress =
-    (typeof forwardedFor === "string"
-      ? forwardedFor.split(",")[0]?.trim()
-      : Array.isArray(forwardedFor)
-        ? forwardedFor[0]?.trim()
-        : null) ||
-    req.socket.remoteAddress ||
-    null;
-
-  try {
-    const parentComment = await prisma.postComment.findFirst({
-      where: {
-        id: commentId,
-        postId,
-        parentId: null,
-        is_approved: true,
-        post: {
-          published: true,
-        },
-      },
-      select: {
-        id: true,
-        author: true,
-        content: true,
-        post: {
-          select: {
-            title: true,
-            slug: true,
-          },
-        },
-      },
-    });
-
-    if (!parentComment) {
-      return res.status(404).json({
-        message: "Comment not found.",
+    if (
+      !Number.isInteger(postId) ||
+      postId <= 0 ||
+      !Number.isInteger(commentId) ||
+      commentId <= 0
+    ) {
+      return res.status(400).json({
+        message: "Invalid post or comment ID.",
       });
     }
 
-    const approvalToken = crypto.randomUUID();
+    const parsed = replyInput.safeParse(req.body);
 
-    const reply = await prisma.postComment.create({
-      data: {
-        postId,
-        parentId: commentId,
-        author:
-          parsed.data.author ||
-          "Anonymous",
-        content: parsed.data.content,
-        ip_address: ipAddress,
-        is_approved: false,
-        approval_token: approvalToken,
-      },
-    });
+    if (!parsed.success) {
+      return res.status(400).json({
+        message: "Invalid reply data.",
+      });
+    }
+
+    const forwardedFor = req.headers["x-forwarded-for"];
+
+    const ipAddress =
+      (typeof forwardedFor === "string"
+        ? forwardedFor.split(",")[0]?.trim()
+        : Array.isArray(forwardedFor)
+          ? forwardedFor[0]?.trim()
+          : null) ||
+      req.socket.remoteAddress ||
+      null;
 
     try {
-      const notificationEmail =
-        process.env.NOTIFICATION_EMAIL;
+      const parentComment =
+        await prisma.postComment.findFirst({
+          where: {
+            id: commentId,
+            postId,
+            parentId: null,
+            is_approved: true,
+            post: {
+              published: true,
+            },
+          },
+          select: {
+            id: true,
+            author: true,
+            content: true,
+            post: {
+              select: {
+                title: true,
+                slug: true,
+              },
+            },
+          },
+        });
 
-      if (!notificationEmail) {
-        console.error(
-          "NOTIFICATION_EMAIL is not configured."
-        );
-      } else {
-        const approvalUrl =
-          `${process.env.API_URL}/api/posts/comments/approve/${approvalToken}`;
-
-        await resend.emails.send({
-          from: "Comments <onboarding@resend.dev>",
-          to: notificationEmail,
-          subject: "💬 New Blog Comment Reply",
-          html: `
-            <h2>
-              Someone replied to a blog comment! 💬
-            </h2>
-
-            <p>
-              <strong>Post:</strong>
-              ${parentComment.post.title}
-            </p>
-
-            <p>
-              <strong>Replying to:</strong>
-              ${parentComment.author}
-            </p>
-
-            <p>
-              <strong>Original Comment:</strong>
-            </p>
-
-            <p>
-              ${parentComment.content}
-            </p>
-
-            <p>
-              <strong>Reply Author:</strong>
-              ${reply.author}
-            </p>
-
-            <p>
-              <strong>Reply:</strong>
-            </p>
-
-            <p>
-              ${reply.content}
-            </p>
-
-            <p>
-              <a
-                href="${approvalUrl}"
-                style="
-                  display:inline-block;
-                  padding:12px 20px;
-                  background:#2563eb;
-                  color:#ffffff;
-                  text-decoration:none;
-                  border:1px solid #2563eb;
-                  border-radius:6px;
-                  font-weight:600;
-                "
-              >
-                Approve Reply
-              </a>
-            </p>
-          `,
+      if (!parentComment) {
+        return res.status(404).json({
+          message: "Comment not found.",
         });
       }
-    } catch (emailError) {
+
+      const approvalToken = crypto.randomUUID();
+
+      const reply = await prisma.postComment.create({
+        data: {
+          postId,
+          parentId: commentId,
+          author:
+            parsed.data.author ||
+            "Anonymous",
+          content: parsed.data.content,
+          ip_address: ipAddress,
+          is_approved: false,
+          approval_token: approvalToken,
+        },
+      });
+
+      try {
+        const notificationEmail =
+          process.env.NOTIFICATION_EMAIL;
+
+        if (!notificationEmail) {
+          console.error(
+            "NOTIFICATION_EMAIL is not configured."
+          );
+        } else {
+          const approvalUrl =
+            `${process.env.API_URL}/api/posts/comments/approve/${approvalToken}`;
+
+          await resend.emails.send({
+            from: "Comments <onboarding@resend.dev>",
+            to: notificationEmail,
+            subject: "💬 New Blog Comment Reply",
+            html: `
+              <h2>
+                Someone replied to a blog comment! 💬
+              </h2>
+
+              <p>
+                <strong>Post:</strong>
+                ${parentComment.post.title}
+              </p>
+
+              <p>
+                <strong>Replying to:</strong>
+                ${parentComment.author}
+              </p>
+
+              <p>
+                <strong>Original Comment:</strong>
+              </p>
+
+              <p>
+                ${parentComment.content}
+              </p>
+
+              <p>
+                <strong>Reply Author:</strong>
+                ${reply.author}
+              </p>
+
+              <p>
+                <strong>Reply:</strong>
+              </p>
+
+              <p>
+                ${reply.content}
+              </p>
+
+              <p>
+                <a
+                  href="${approvalUrl}"
+                  style="
+                    display:inline-block;
+                    padding:12px 20px;
+                    background:#2563eb;
+                    color:#ffffff;
+                    text-decoration:none;
+                    border:1px solid #2563eb;
+                    border-radius:6px;
+                    font-weight:600;
+                  "
+                >
+                  Approve Reply
+                </a>
+              </p>
+            `,
+          });
+        }
+      } catch (emailError) {
+        console.error(
+          "Reply notification email failed:",
+          emailError
+        );
+      }
+
+      return res.status(201).json({
+        id: reply.id,
+        author: reply.author,
+        content: reply.content,
+        countryCode: getCountryCodeFromIp(
+          reply.ip_address
+        ),
+        likes: reply.likeCount,
+        liked: false,
+        replies: [],
+        is_approved: reply.is_approved,
+        message:
+          "Reply submitted and is awaiting approval.",
+      });
+    } catch (error) {
       console.error(
-        "Reply notification email failed:",
-        emailError
+        "Failed to create reply:",
+        error
       );
+
+      return res.status(500).json({
+        message: "Could not create reply.",
+      });
     }
-
-    return res.status(201).json({
-      id: reply.id,
-      author: reply.author,
-      content: reply.content,
-      countryCode: getCountryCodeFromIp(
-        reply.ip_address
-      ),
-      likes: reply.likeCount,
-      liked: false,
-      replies: [],
-      is_approved: reply.is_approved,
-      message:
-        "Reply submitted and is awaiting approval.",
-    });
-  } catch (error) {
-    console.error(
-      "Failed to create reply:",
-      error
-    );
-
-    return res.status(500).json({
-      message: "Could not create reply.",
-    });
   }
-});
+);
 
 router.get("/comments/approve/:approvalToken", async (req, res) => {
-  const { approvalToken } = req.params;
+    const { approvalToken } = req.params;
 
-  try {
-    const comment = await prisma.postComment.findUnique({
-      where: {
-        approval_token: approvalToken,
-      },
-      select: {
-        id: true,
-        postId: true,
-        is_approved: true,
-      },
-    });
-
-    if (!comment || comment.is_approved) {
-      return res.status(404).send(
-        "Invalid or expired approval link."
-      );
-    }
-
-    await prisma.$transaction(async (tx) => {
-      await tx.postComment.update({
-        where: {
-          id: comment.id,
-        },
-        data: {
-          is_approved: true,
-          approval_token: null,
-        },
-      });
-
-      await tx.post.update({
-        where: {
-          id: comment.postId,
-        },
-        data: {
-          commentCount: {
-            increment: 1,
+    try {
+      const comment =
+        await prisma.postComment.findUnique({
+          where: {
+            approval_token: approvalToken,
           },
-        },
-      });
-    });
+          select: {
+            id: true,
+            postId: true,
+            is_approved: true,
+          },
+        });
 
-    return res.send(`
+      if (!comment || comment.is_approved) {
+        return res.status(404).send(
+          "Invalid or expired approval link."
+        );
+      }
+
+      await prisma.$transaction([
+        prisma.postComment.update({
+          where: {
+            id: comment.id,
+          },
+          data: {
+            is_approved: true,
+            approval_token: null,
+          },
+        }),
+
+        prisma.post.update({
+          where: {
+            id: comment.postId,
+          },
+          data: {
+            commentCount: {
+              increment: 1,
+            },
+          },
+        }),
+      ]);
+
+      return res.send(`
         <!DOCTYPE html>
         <html>
           <head>
@@ -1014,94 +1024,94 @@ router.get("/comments/approve/:approvalToken", async (req, res) => {
           </body>
         </html>
       `);
-  } catch (error) {
-    console.error(
-      "Failed to approve comment:",
-      error
-    );
+    } catch (error) {
+      console.error(
+        "Failed to approve comment:",
+        error
+      );
 
-    return res.status(500).send(
-      "Could not approve comment."
-    );
+      return res.status(500).send(
+        "Could not approve comment."
+      );
+    }
   }
-}
 );
 
 router.post("/:id/comments/:commentId/like", async (req, res) => {
-  const postId = Number(req.params.id);
-  const commentId = Number(req.params.commentId);
+    const postId = Number(req.params.id);
+    const commentId = Number(req.params.commentId);
 
-  if (
-    !Number.isInteger(postId) ||
-    postId <= 0 ||
-    !Number.isInteger(commentId) ||
-    commentId <= 0
-  ) {
-    return res.status(400).json({
-      message: "Invalid post or comment ID.",
-    });
-  }
-
-  const forwardedFor = req.headers["x-forwarded-for"];
-
-  const ipAddress =
-    (typeof forwardedFor === "string"
-      ? forwardedFor.split(",")[0]?.trim()
-      : Array.isArray(forwardedFor)
-        ? forwardedFor[0]?.trim()
-        : null) ||
-    req.socket.remoteAddress ||
-    null;
-
-  if (!ipAddress) {
-    return res.status(400).json({
-      message: "Could not determine IP address.",
-    });
-  }
-
-  try {
-    const comment = await prisma.postComment.findFirst({
-      where: {
-        id: commentId,
-        postId,
-        post: {
-          published: true,
-        },
-      },
-      select: {
-        id: true,
-        likeCount: true,
-      },
-    });
-
-    if (!comment) {
-      return res.status(404).json({
-        message: "Comment not found.",
+    if (
+      !Number.isInteger(postId) ||
+      postId <= 0 ||
+      !Number.isInteger(commentId) ||
+      commentId <= 0
+    ) {
+      return res.status(400).json({
+        message: "Invalid post or comment ID.",
       });
     }
 
-    const existingLike =
-      await prisma.postCommentLike.findFirst({
-        where: {
-          commentId,
-          ip_address: ipAddress,
-        },
-        select: {
-          id: true,
-        },
+    const forwardedFor = req.headers["x-forwarded-for"];
+
+    const ipAddress =
+      (typeof forwardedFor === "string"
+        ? forwardedFor.split(",")[0]?.trim()
+        : Array.isArray(forwardedFor)
+          ? forwardedFor[0]?.trim()
+          : null) ||
+      req.socket.remoteAddress ||
+      null;
+
+    if (!ipAddress) {
+      return res.status(400).json({
+        message: "Could not determine IP address.",
       });
+    }
 
-    if (existingLike) {
-      const result = await prisma.$transaction(
-        async (tx) => {
-          await tx.postCommentLike.delete({
-            where: {
-              id: existingLike.id,
+    try {
+      const comment =
+        await prisma.postComment.findFirst({
+          where: {
+            id: commentId,
+            postId,
+            post: {
+              published: true,
             },
-          });
+          },
+          select: {
+            id: true,
+            likeCount: true,
+          },
+        });
 
-          const updatedComment =
-            await tx.postComment.update({
+      if (!comment) {
+        return res.status(404).json({
+          message: "Comment not found.",
+        });
+      }
+
+      const existingLike =
+        await prisma.postCommentLike.findFirst({
+          where: {
+            commentId,
+            ip_address: ipAddress,
+          },
+          select: {
+            id: true,
+          },
+        });
+
+      if (existingLike) {
+        const [, updatedComment, updatedPost] =
+          await prisma.$transaction([
+            prisma.postCommentLike.delete({
+              where: {
+                id: existingLike.id,
+              },
+            }),
+
+            prisma.postComment.update({
               where: {
                 id: commentId,
               },
@@ -1113,10 +1123,9 @@ router.post("/:id/comments/:commentId/like", async (req, res) => {
               select: {
                 likeCount: true,
               },
-            });
+            }),
 
-          const updatedPost =
-            await tx.post.update({
+            prisma.post.update({
               where: {
                 id: postId,
               },
@@ -1128,35 +1137,26 @@ router.post("/:id/comments/:commentId/like", async (req, res) => {
               select: {
                 likeCount: true,
               },
-            });
+            }),
+          ]);
 
-          return {
-            commentLikeCount:
-              updatedComment.likeCount,
-            postLikeCount:
-              updatedPost.likeCount,
-          };
-        }
-      );
-
-      return res.status(200).json({
-        liked: false,
-        likeCount: result.commentLikeCount,
-        postLikeCount: result.postLikeCount,
-      });
-    }
-
-    const result = await prisma.$transaction(
-      async (tx) => {
-        await tx.postCommentLike.create({
-          data: {
-            commentId,
-            ip_address: ipAddress,
-          },
+        return res.status(200).json({
+          liked: false,
+          likeCount: updatedComment.likeCount,
+          postLikeCount: updatedPost.likeCount,
         });
+      }
 
-        const updatedComment =
-          await tx.postComment.update({
+      const [, updatedComment, updatedPost] =
+        await prisma.$transaction([
+          prisma.postCommentLike.create({
+            data: {
+              commentId,
+              ip_address: ipAddress,
+            },
+          }),
+
+          prisma.postComment.update({
             where: {
               id: commentId,
             },
@@ -1168,10 +1168,9 @@ router.post("/:id/comments/:commentId/like", async (req, res) => {
             select: {
               likeCount: true,
             },
-          });
+          }),
 
-        const updatedPost =
-          await tx.post.update({
+          prisma.post.update({
             where: {
               id: postId,
             },
@@ -1183,33 +1182,26 @@ router.post("/:id/comments/:commentId/like", async (req, res) => {
             select: {
               likeCount: true,
             },
-          });
+          }),
+        ]);
 
-        return {
-          commentLikeCount:
-            updatedComment.likeCount,
-          postLikeCount:
-            updatedPost.likeCount,
-        };
-      }
-    );
+      return res.status(200).json({
+        liked: true,
+        likeCount: updatedComment.likeCount,
+        postLikeCount: updatedPost.likeCount,
+      });
+    } catch (error) {
+      console.error(
+        "Failed to toggle comment like:",
+        error
+      );
 
-    return res.status(200).json({
-      liked: true,
-      likeCount: result.commentLikeCount,
-      postLikeCount: result.postLikeCount,
-    });
-  } catch (error) {
-    console.error(
-      "Failed to toggle comment like:",
-      error
-    );
-
-    return res.status(500).json({
-      message: "Could not update comment like.",
-    });
+      return res.status(500).json({
+        message: "Could not update comment like.",
+      });
+    }
   }
-});
+);
 
 router.get("/:slug", async (req, res) => {
   const value = req.params.slug;
@@ -1235,7 +1227,6 @@ router.get("/:slug", async (req, res) => {
     }
 
     try {
-      // Reuse the same authentication middleware.
       await new Promise<void>((resolve, reject) => {
         requireAuth(req, res, (error) => {
           if (error) {
@@ -1393,7 +1384,10 @@ router.post("/:id/share", async (req, res) => {
       shareCount: updatedPost.shareCount,
     });
   } catch (error) {
-    console.error("Failed to track post share:", error);
+    console.error(
+      "Failed to track post share:",
+      error
+    );
 
     return res.status(500).json({
       message: "Could not track post share.",
@@ -1437,12 +1431,13 @@ router.post("/:id/like", async (req, res) => {
       });
     }
 
-    const existingLike = await prisma.postLike.findFirst({
-      where: {
-        postId,
-        ip_address: ipAddress,
-      },
-    });
+    const existingLike =
+      await prisma.postLike.findFirst({
+        where: {
+          postId,
+          ip_address: ipAddress,
+        },
+      });
 
     if (existingLike) {
       await prisma.postLike.delete({
@@ -1498,7 +1493,10 @@ router.post("/:id/like", async (req, res) => {
       likeCount: updatedPost.likeCount,
     });
   } catch (error) {
-    console.error("Failed to toggle post like:", error);
+    console.error(
+      "Failed to toggle post like:",
+      error
+    );
 
     return res.status(500).json({
       message: "Could not update post like.",
@@ -1507,51 +1505,52 @@ router.post("/:id/like", async (req, res) => {
 });
 
 router.post("/upload", requireAuth, upload.single("image"), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({
-        message: "No image uploaded.",
+    try {
+      if (!req.file) {
+        return res.status(400).json({
+          message: "No image uploaded.",
+        });
+      }
+
+      const extension =
+        req.file.originalname.split(".").pop()?.toLowerCase() ||
+        "jpg";
+
+      const fileName = `${crypto.randomUUID()}.${extension}`;
+
+      await s3.send(
+        new PutObjectCommand({
+          Bucket: STORAGE_BUCKET,
+          Key: fileName,
+          Body: req.file.buffer,
+          ContentType: req.file.mimetype,
+          CacheControl: "3600",
+        })
+      );
+
+      const supabaseUrl = process.env.SUPABASE_URL;
+
+      if (!supabaseUrl) {
+        return res.status(500).json({
+          message: "SUPABASE_URL is not configured.",
+        });
+      }
+
+      const publicUrl =
+        `${supabaseUrl}/storage/v1/object/public/${STORAGE_BUCKET}/${fileName}`;
+
+      res.status(201).json({
+        url: publicUrl,
+        fileName,
+      });
+    } catch (error) {
+      console.error("Image upload error:", error);
+
+      res.status(500).json({
+        message: "Could not upload image.",
       });
     }
-
-    const extension =
-      req.file.originalname.split(".").pop()?.toLowerCase() || "jpg";
-
-    const fileName = `${crypto.randomUUID()}.${extension}`;
-
-    await s3.send(
-      new PutObjectCommand({
-        Bucket: STORAGE_BUCKET,
-        Key: fileName,
-        Body: req.file.buffer,
-        ContentType: req.file.mimetype,
-        CacheControl: "3600",
-      })
-    );
-
-    const supabaseUrl = process.env.SUPABASE_URL;
-
-    if (!supabaseUrl) {
-      return res.status(500).json({
-        message: "SUPABASE_URL is not configured.",
-      });
-    }
-
-    const publicUrl =
-      `${supabaseUrl}/storage/v1/object/public/${STORAGE_BUCKET}/${fileName}`;
-
-    res.status(201).json({
-      url: publicUrl,
-      fileName,
-    });
-  } catch (error) {
-    console.error("Image upload error:", error);
-
-    res.status(500).json({
-      message: "Could not upload image.",
-    });
   }
-}
 );
 
 router.post("/", requireAuth, async (req, res) => {
@@ -1649,40 +1648,38 @@ router.put("/:id", requireAuth, async (req, res) => {
       !!newCoverImageUrl &&
       oldCoverImageUrl !== newCoverImageUrl;
 
-    const post = await prisma.$transaction(
-      async (tx: Prisma.TransactionClient) => {
-        await tx.postTag.deleteMany({
-          where: {
-            postId: id,
-          },
-        });
+    const [, post] = await prisma.$transaction([
+      prisma.postTag.deleteMany({
+        where: {
+          postId: id,
+        },
+      }),
 
-        return tx.post.update({
-          where: {
-            id,
+      prisma.post.update({
+        where: {
+          id,
+        },
+        data: {
+          ...data,
+          publishedAt: publishedAt
+            ? new Date(publishedAt)
+            : existing.publishedAt,
+          tags: {
+            create: tagIds.map((tagId) => ({
+              tagId,
+            })),
           },
-          data: {
-            ...data,
-            publishedAt: publishedAt
-              ? new Date(publishedAt)
-              : existing.publishedAt,
-            tags: {
-              create: tagIds.map((tagId) => ({
-                tagId,
-              })),
+        },
+        include: {
+          category: true,
+          tags: {
+            include: {
+              tag: true,
             },
           },
-          include: {
-            category: true,
-            tags: {
-              include: {
-                tag: true,
-              },
-            },
-          },
-        });
-      }
-    );
+        },
+      }),
+    ]);
 
     if (imageWasRemoved || imageWasChanged) {
       try {
@@ -1724,63 +1721,74 @@ router.put("/:id", requireAuth, async (req, res) => {
   }
 });
 
-router.delete("/comments/:id", requireAuth, async (req, res) => {
-  try {
-    const id = Number(req.params.id);
+router.delete( "/comments/:id", requireAuth, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
 
-    if (!Number.isInteger(id)) {
-      return res.status(400).json({
-        message: "Invalid comment ID.",
-      });
-    }
+      if (!Number.isInteger(id)) {
+        return res.status(400).json({
+          message: "Invalid comment ID.",
+        });
+      }
 
-    const comment = await prisma.postComment.findUnique({
-      where: {
-        id,
-      },
-      select: {
-        id: true,
-        postId: true,
-        is_approved: true,
-      },
-    });
+      const comment =
+        await prisma.postComment.findUnique({
+          where: {
+            id,
+          },
+          select: {
+            id: true,
+            postId: true,
+            is_approved: true,
+          },
+        });
 
-    if (!comment) {
-      return res.status(404).json({
-        message: "Comment not found.",
-      });
-    }
-
-    await prisma.$transaction(async (tx) => {
-      await tx.postComment.delete({
-        where: {
-          id,
-        },
-      });
+      if (!comment) {
+        return res.status(404).json({
+          message: "Comment not found.",
+        });
+      }
 
       if (comment.is_approved) {
-        await tx.post.update({
-          where: {
-            id: comment.postId,
-          },
-          data: {
-            commentCount: {
-              decrement: 1,
+        await prisma.$transaction([
+          prisma.postComment.delete({
+            where: {
+              id,
             },
+          }),
+
+          prisma.post.update({
+            where: {
+              id: comment.postId,
+            },
+            data: {
+              commentCount: {
+                decrement: 1,
+              },
+            },
+          }),
+        ]);
+      } else {
+        await prisma.postComment.delete({
+          where: {
+            id,
           },
         });
       }
-    });
 
-    res.status(204).send();
-  } catch (error) {
-    console.error("Delete comment error:", error);
+      res.status(204).send();
+    } catch (error) {
+      console.error(
+        "Delete comment error:",
+        error
+      );
 
-    res.status(500).json({
-      message: "Could not delete comment.",
-    });
+      res.status(500).json({
+        message: "Could not delete comment.",
+      });
+    }
   }
-});
+);
 
 router.delete("/:id", requireAuth, async (req, res) => {
   try {
@@ -1846,7 +1854,10 @@ router.delete("/:id", requireAuth, async (req, res) => {
 
     res.status(204).send();
   } catch (error) {
-    console.error("Delete post error:", error);
+    console.error(
+      "Delete post error:",
+      error
+    );
 
     res.status(500).json({
       message: "Could not delete post.",
