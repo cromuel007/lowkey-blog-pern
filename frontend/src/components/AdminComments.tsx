@@ -24,6 +24,8 @@ import {
 } from "./AlertDialog";
 import { useLoadingDots } from "../hooks/useLoadingDots";
 
+const REFRESH_INTERVAL = 10000;
+
 type PostComment = {
     id: number;
     author: string;
@@ -118,6 +120,16 @@ export default function Comments() {
             navigate("/admin/login")
         );
     }, [currentPage, sortBy, sortOrder, search]);
+
+    useEffect(() => {
+        const interval = setInterval(() => {
+            load(currentPage).catch(() =>
+                navigate("/admin/login")
+            );
+        }, REFRESH_INTERVAL);
+
+        return () => clearInterval(interval);
+    }, [currentPage]);
 
     function handleSort(column: CommentSortColumn) {
         if (sortBy === column) {
