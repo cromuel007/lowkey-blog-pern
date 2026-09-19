@@ -12,6 +12,9 @@ import AdminPostEdit from "./components/AdminPostEdit";
 import AdminCategories from "./components/AdminCategories";
 import AdminCategoriesForm from "./components/AdminCategoriesForm";
 
+import AdminTags from "./components/AdminTags";
+import AdminTagsForm from "./components/AdminTagsForm";
+
 import Home from "./components/Home";
 import PostPage from "./components/PostPage";
 import Footer from "./components/Footer";
@@ -109,9 +112,15 @@ export default function App() {
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/admin/posts" element={<AdminPosts />} />
         <Route path="/admin/comments" element={<AdminComments />} />
+
         <Route path="/admin/categories" element={<AdminCategories />} />
         <Route path="/admin/categories/new" element={<AdminCategoriesForm />} />
         <Route path="/admin/categories/:id/edit" element={<AdminCategoriesForm />} />
+
+        <Route path="/admin/tags" element={<AdminTags />} />
+        <Route path="/admin/tags/new" element={<AdminTagsForm />} />
+        <Route path="/admin/tags/:id/edit" element={<AdminTagsForm />} />
+
         <Route path="/admin/posts/new" element={<AdminPostNew />} />
         <Route path="/admin/posts/:id/edit" element={<AdminPostEdit />} />
       </Routes>

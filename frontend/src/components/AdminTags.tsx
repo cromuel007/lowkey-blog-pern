@@ -3,8 +3,7 @@ import {
     ArrowRight,
     ChevronLeft,
     ChevronRight,
-    Folder,
-    Layers,
+    Tags,
     Pencil,
     Plus,
     Search,
@@ -24,7 +23,7 @@ import {
 } from "./AlertDialog";
 import { useLoadingDots } from "../hooks/useLoadingDots";
 
-type Category = {
+type TagItem = {
     id: number;
     name: string;
     slug: string;
@@ -36,19 +35,19 @@ type Category = {
 
 type SortColumn = "name" | "slug" | "posts" | "createdAt";
 
-export default function Categories() {
+export default function Tagsx() {
     const navigate = useNavigate();
 
-    const [categories, setCategories] = useState<Category[]>([]);
+    const [tags, setTags] = useState<TagItem[]>([]);
     const [message, setMessage] = useState("");
-    const [deleteCategoryId, setDeleteCategoryId] = useState<number | null>(
-        null
-    );
+    const [deleteTagId, setDeleteTagId] = useState<number | null>(null);
     const [deleting, setDeleting] = useState(false);
     const [search, setSearch] = useState("");
 
     const [sortBy, setSortBy] = useState<SortColumn>("name");
     const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+
+    const [currentPage, setCurrentPage] = useState(1);
 
     const loadingDots = useLoadingDots();
 
@@ -64,11 +63,11 @@ export default function Categories() {
             return;
         }
 
-        const { data } = await api.get<Category[]>("/api/categories", {
+        const { data } = await api.get<TagItem[]>("/api/tags", {
             headers,
         });
 
-        setCategories(data);
+        setTags(data);
     }
 
     useEffect(() => {
@@ -119,11 +118,11 @@ export default function Categories() {
     }
 
     function remove(id: number) {
-        setDeleteCategoryId(id);
+        setDeleteTagId(id);
     }
 
     async function confirmDelete() {
-        if (deleteCategoryId === null) {
+        if (deleteTagId === null) {
             return;
         }
 
@@ -131,12 +130,12 @@ export default function Categories() {
         setMessage("");
 
         try {
-            await api.delete(`/api/categories/${deleteCategoryId}`, {
+            await api.delete(`/api/tags/${deleteTagId}`, {
                 headers,
             });
 
-            setMessage("Category deleted.");
-            setDeleteCategoryId(null);
+            setMessage("Tag deleted.");
+            setDeleteTagId(null);
 
             await load();
         } catch (error: any) {
@@ -144,14 +143,14 @@ export default function Categories() {
                 error?.response?.data?.message;
 
             setMessage(
-                responseMessage || "Could not delete category."
+                responseMessage || "Could not delete tag."
             );
         } finally {
             setDeleting(false);
         }
     }
 
-    const filteredCategories = categories.filter((category) => {
+    const filteredTags = tags.filter((tag) => {
         const query = search.trim().toLowerCase();
 
         if (!query) {
@@ -159,51 +158,48 @@ export default function Categories() {
         }
 
         return (
-            category.name.toLowerCase().includes(query) ||
-            category.slug.toLowerCase().includes(query)
+            tag.name.toLowerCase().includes(query) ||
+            tag.slug.toLowerCase().includes(query)
         );
     });
 
-    const sortedCategories = [...filteredCategories].sort(
-        (a, b) => {
-            let comparison = 0;
+    const sortedTags = [...filteredTags].sort((a, b) => {
+        let comparison = 0;
 
-            switch (sortBy) {
-                case "name":
-                    comparison = a.name.localeCompare(b.name);
-                    break;
+        switch (sortBy) {
+            case "name":
+                comparison = a.name.localeCompare(b.name);
+                break;
 
-                case "slug":
-                    comparison = a.slug.localeCompare(b.slug);
-                    break;
+            case "slug":
+                comparison = a.slug.localeCompare(b.slug);
+                break;
 
-                case "posts":
-                    comparison =
-                        a._count.posts - b._count.posts;
-                    break;
+            case "posts":
+                comparison =
+                    a._count.posts - b._count.posts;
+                break;
 
-                case "createdAt":
-                    comparison =
-                        new Date(a.createdAt).getTime() -
-                        new Date(b.createdAt).getTime();
-                    break;
-            }
-
-            return sortOrder === "asc"
-                ? comparison
-                : -comparison;
+            case "createdAt":
+                comparison =
+                    new Date(a.createdAt).getTime() -
+                    new Date(b.createdAt).getTime();
+                break;
         }
-    );
 
-    const CATEGORIES_PER_PAGE = 10;
+        return sortOrder === "asc"
+            ? comparison
+            : -comparison;
+    });
 
-    const totalCategories = sortedCategories.length;
+    const TAGS_PER_PAGE = 10;
+
+    const totalTags = sortedTags.length;
+
     const totalPages = Math.max(
         1,
-        Math.ceil(totalCategories / CATEGORIES_PER_PAGE)
+        Math.ceil(totalTags / TAGS_PER_PAGE)
     );
-
-    const [currentPage, setCurrentPage] = useState(1);
 
     useEffect(() => {
         setCurrentPage(1);
@@ -215,9 +211,9 @@ export default function Categories() {
         }
     }, [currentPage, totalPages]);
 
-    const paginatedCategories = sortedCategories.slice(
-        (currentPage - 1) * CATEGORIES_PER_PAGE,
-        currentPage * CATEGORIES_PER_PAGE
+    const paginatedTags = sortedTags.slice(
+        (currentPage - 1) * TAGS_PER_PAGE,
+        currentPage * TAGS_PER_PAGE
     );
 
     return (
@@ -235,16 +231,16 @@ export default function Categories() {
                     </p>
 
                     <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-ink sm:text-4xl">
-                        Categories
+                        Tags
                     </h1>
 
                     <p className="mt-2 text-slate">
-                        Create, edit and manage your blog categories.
+                        Create, edit and manage your blog tags.
                     </p>
                 </div>
             </div>
 
-            {/* Find + New Category */}
+            {/* Find + New Tag */}
             <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="relative w-full sm:max-w-sm">
                     <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
@@ -255,36 +251,36 @@ export default function Categories() {
                         onChange={(e) => {
                             setSearch(e.target.value);
                         }}
-                        placeholder="Find categories..."
+                        placeholder="Find tags..."
                         className="w-full rounded-lg border border-line bg-white py-2.5 pl-9 pr-3 text-sm text-ink outline-none transition-colors placeholder:text-muted focus:border-accent"
                     />
                 </div>
 
                 <Link
-                    to="/admin/categories/new"
+                    to="/admin/tags/new"
                     className="btn-primary"
                 >
                     <Plus className="h-4 w-4" />
-                    New Category
+                    New Tag
                 </Link>
             </div>
 
-            {paginatedCategories.length === 0 ? (
+            {paginatedTags.length === 0 ? (
                 <div className="rounded-lg bg-white px-7 py-12 text-center shadow-sm">
                     <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-lg bg-accent-soft text-accent">
-                        <Layers className="h-5 w-5" />
+                        <Tags className="h-5 w-5" />
                     </div>
 
                     <h2 className="mt-4 font-bold text-ink">
                         {search
-                            ? "No categories found"
-                            : "No categories yet"}
+                            ? "No tags found"
+                            : "No tags yet"}
                     </h2>
 
                     <p className="mt-1 text-sm text-slate">
                         {search
-                            ? `No categories match "${search}".`
-                            : "Create your first category to get started."}
+                            ? `No tags match "${search}".`
+                            : "Create your first tag to get started."}
                     </p>
 
                     {search ? (
@@ -297,10 +293,10 @@ export default function Categories() {
                         </button>
                     ) : (
                         <Link
-                            to="/admin/categories/new"
+                            to="/admin/tags/new"
                             className="mt-5 inline-flex items-center gap-2 font-semibold text-accent transition-colors hover:text-accent-dark"
                         >
-                            Create your first category
+                            Create your first tag
                             <ArrowRight className="h-4 w-4" />
                         </Link>
                     )}
@@ -374,76 +370,59 @@ export default function Categories() {
                             </thead>
 
                             <tbody className="divide-y divide-line">
-                                {paginatedCategories.map(
-                                    (category) => (
-                                        <tr
-                                            key={category.id}
-                                            className="transition-colors hover:bg-surface/50"
-                                        >
-                                            <td className="px-6 py-4">
-                                                <p className="text-sm font-semibold text-ink">
-                                                    {category.name}
-                                                </p>
-                                            </td>
+                                {paginatedTags.map((tag) => (
+                                    <tr
+                                        key={tag.id}
+                                        className="transition-colors hover:bg-surface/50"
+                                    >
+                                        <td className="px-6 py-4">
+                                            <p className="text-sm font-semibold text-ink">
+                                                {tag.name}
+                                            </p>
+                                        </td>
 
-                                            <td className="px-6 py-4">
-                                                <p className="text-sm text-muted">
-                                                    /{category.slug}
-                                                </p>
-                                            </td>
+                                        <td className="px-6 py-4">
+                                            <p className="text-sm text-muted">
+                                                /{tag.slug}
+                                            </p>
+                                        </td>
 
-                                            <td className="px-6 py-4">
-                                                <span className="inline-flex rounded-full bg-accent-soft px-2.5 py-1 text-xs font-semibold text-accent">
-                                                    {category._count.posts}
-                                                </span>
-                                            </td>
+                                        <td className="px-6 py-4">
+                                            <span className="inline-flex rounded-full bg-accent-soft px-2.5 py-1 text-xs font-semibold text-accent">
+                                                {tag._count.posts}
+                                            </span>
+                                        </td>
 
-                                            <td className="whitespace-nowrap px-6 py-4 text-sm text-slate">
-                                                {new Date(
-                                                    category.createdAt
-                                                ).toLocaleDateString()}
-                                            </td>
+                                        <td className="whitespace-nowrap px-6 py-4 text-sm text-slate">
+                                            {new Date(
+                                                tag.createdAt
+                                            ).toLocaleDateString()}
+                                        </td>
 
-                                            <td className="px-4 py-4">
-                                                <div className="flex items-center justify-center gap-2">
-                                                    <Link
-                                                        to={`/admin/categories/${category.id}/edit`}
-                                                        title="Edit category"
-                                                        className="inline-flex items-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-sm font-semibold text-ink transition-colors hover:border-accent hover:text-accent"
-                                                    >
-                                                        <Pencil className="h-4 w-4" />
-                                                    </Link>
+                                        <td className="px-4 py-4">
+                                            <div className="flex items-center justify-center gap-2">
+                                                <Link
+                                                    to={`/admin/tags/${tag.id}/edit`}
+                                                    title="Edit tag"
+                                                    className="inline-flex items-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-sm font-semibold text-ink transition-colors hover:border-accent hover:text-accent"
+                                                >
+                                                    <Pencil className="h-4 w-4" />
+                                                </Link>
 
-                                                    <button
-                                                        type="button"
-                                                        onClick={() =>
-                                                            remove(
-                                                                category.id
-                                                            )
-                                                        }
-                                                        title={
-                                                            category
-                                                                ._count
-                                                                .posts >
-                                                                0
-                                                                ? "Cannot delete category with posts"
-                                                                : "Delete category"
-                                                        }
-                                                        disabled={
-                                                            category
-                                                                ._count
-                                                                .posts >
-                                                            0
-                                                        }
-                                                        className="inline-flex items-center gap-2 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-sm font-semibold text-danger transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-red-50"
-                                                    >
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    )
-                                )}
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        remove(tag.id)
+                                                    }
+                                                    title="Delete tag"
+                                                    className="inline-flex items-center gap-2 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-sm font-semibold text-danger transition-colors hover:bg-red-100"
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
                             </tbody>
                         </table>
                     </div>
@@ -454,14 +433,13 @@ export default function Categories() {
                             Showing{" "}
                             <span className="font-semibold text-ink">
                                 {Math.min(
-                                    currentPage *
-                                    CATEGORIES_PER_PAGE,
-                                    totalCategories
+                                    currentPage * TAGS_PER_PAGE,
+                                    totalTags
                                 )}
                             </span>{" "}
                             of{" "}
                             <span className="font-semibold text-ink">
-                                {totalCategories}
+                                {totalTags}
                             </span>
                         </p>
 
@@ -518,21 +496,21 @@ export default function Categories() {
 
             {/* Delete dialog */}
             <AlertDialog
-                open={deleteCategoryId !== null}
+                open={deleteTagId !== null}
                 onOpenChange={(open: boolean) => {
                     if (!open && !deleting) {
-                        setDeleteCategoryId(null);
+                        setDeleteTagId(null);
                     }
                 }}
             >
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>
-                            Delete this category?
+                            Delete this tag?
                         </AlertDialogTitle>
 
                         <AlertDialogDescription>
-                            This action cannot be undone. The category
+                            This action cannot be undone. The tag
                             will be permanently deleted from your blog.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
@@ -555,7 +533,7 @@ export default function Categories() {
                                     </span>
                                 </span>
                             ) : (
-                                "Delete Category"
+                                "Delete Tag"
                             )}
                         </AlertDialogAction>
                     </AlertDialogFooter>

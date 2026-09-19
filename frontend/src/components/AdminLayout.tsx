@@ -32,7 +32,7 @@ export default function AdminLayout({
     const isPosts = location.pathname.startsWith("/admin/posts");
     const isComments = location.pathname.startsWith("/admin/comments");
     const isCategories = location.pathname.startsWith("/admin/categories");
-    const isTags = location.pathname.startsWith("/admin/fags");
+    const isTags = location.pathname.startsWith("/admin/tags");
     const isUsers = location.pathname.startsWith("/admin/users");
 
     return (
@@ -105,7 +105,7 @@ export default function AdminLayout({
                         </Link>
 
                         <Link
-                            to="/admin/comments"
+                            to="/admin/tags"
                             className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${isTags
                                 ? "bg-accent-soft text-accent"
                                 : "text-slate hover:bg-surface-alt hover:text-ink"

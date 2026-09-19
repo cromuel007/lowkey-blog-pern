@@ -3,6 +3,7 @@ import {
     Check,
     ChevronLeft,
     ChevronRight,
+    MessageCircle,
     MessageSquare,
     Search,
     ThumbsUp,
@@ -284,7 +285,7 @@ export default function Comments() {
             {comments.length === 0 ? (
                 <div className="rounded-lg bg-white px-7 py-12 text-center shadow-sm">
                     <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-lg bg-accent-soft text-accent">
-                        <MessageSquare className="h-5 w-5" />
+                        <MessageCircle className="h-5 w-5" />
                     </div>
 
                     <h2 className="mt-4 font-bold text-ink">
