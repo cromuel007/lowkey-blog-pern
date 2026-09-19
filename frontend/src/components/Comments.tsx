@@ -1359,10 +1359,7 @@ export default function Comments({
                             {comments.length ===
                                 0 && (
                                     <p className="py-6 text-center text-sm text-muted">
-                                        No comments yet.
-                                        Be the first to
-                                        share your
-                                        thoughts.
+                                        No comments yet. Be the first to share your thoughts! 👋
                                     </p>
                                 )}
                         </>
