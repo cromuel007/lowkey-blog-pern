@@ -15,6 +15,9 @@ import AdminCategoriesForm from "./components/AdminCategoriesForm";
 import AdminTags from "./components/AdminTags";
 import AdminTagsForm from "./components/AdminTagsForm";
 
+import AdminUsers from "./components/AdminUsers";
+import AdminUsersForm from "./components/AdminUsersForm";
+
 import Home from "./components/Home";
 import PostPage from "./components/PostPage";
 import Footer from "./components/Footer";
@@ -120,6 +123,10 @@ export default function App() {
         <Route path="/admin/tags" element={<AdminTags />} />
         <Route path="/admin/tags/new" element={<AdminTagsForm />} />
         <Route path="/admin/tags/:id/edit" element={<AdminTagsForm />} />
+
+        <Route path="/admin/users" element={<AdminUsers />} />
+        <Route path="/admin/users/new" element={<AdminUsersForm />} />
+        <Route path="/admin/users/:id/edit" element={<AdminUsersForm />} />
 
         <Route path="/admin/posts/new" element={<AdminPostNew />} />
         <Route path="/admin/posts/:id/edit" element={<AdminPostEdit />} />

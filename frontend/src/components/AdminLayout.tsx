@@ -116,14 +116,14 @@ export default function AdminLayout({
                         </Link>
 
                         <Link
-                            to="/admin/comments"
+                            to="/admin/users"
                             className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${isUsers
                                 ? "bg-accent-soft text-accent"
                                 : "text-slate hover:bg-surface-alt hover:text-ink"
                                 }`}
                         >
                             <Users className="h-4 w-4" />
-                            Users
+                            Admins
                         </Link>
                     </nav>
                 </div>
