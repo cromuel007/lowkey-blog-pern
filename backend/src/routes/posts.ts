@@ -10,8 +10,28 @@ import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/auth.js";
 import { s3, STORAGE_BUCKET } from "../lib/s3.js";
 import { Prisma } from "@prisma/client";
+import geoip from "geoip-lite";
+import { Resend } from "resend";
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 const router = Router();
+
+function getCountryCodeFromIp(
+  ip: string | null | undefined
+): string | null {
+  if (!ip) {
+    return null;
+  }
+
+  const normalizedIp = ip.startsWith("::ffff:")
+    ? ip.substring(7)
+    : ip;
+
+  const geo = geoip.lookup(normalizedIp);
+
+  return geo?.country || null;
+}
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -43,6 +63,16 @@ const postInput = z.object({
   coverImageUrl: z.url().optional().nullable(),
   categoryId: z.number().int().positive().optional().nullable(),
   tagIds: z.array(z.number().int().positive()).default([]),
+});
+
+const commentInput = z.object({
+  author: z.string().trim().max(100).optional().default(""),
+  content: z.string().trim().min(1).max(5000),
+});
+
+const replyInput = z.object({
+  author: z.string().trim().max(100).optional().default(""),
+  content: z.string().trim().min(1).max(5000),
 });
 
 router.get("/", async (req, res) => {
@@ -242,6 +272,725 @@ router.get("/", async (req, res) => {
       Math.ceil(total / pageSize)
     ),
   });
+});
+
+router.get("/:slug/comments", async (req, res) => {
+  const value = req.params.slug;
+
+  const forwardedFor = req.headers["x-forwarded-for"];
+
+  const ipAddress =
+    (typeof forwardedFor === "string"
+      ? forwardedFor.split(",")[0]?.trim()
+      : Array.isArray(forwardedFor)
+        ? forwardedFor[0]?.trim()
+        : null) ||
+    req.socket.remoteAddress ||
+    null;
+
+  try {
+    const post = await prisma.post.findUnique({
+      where: {
+        slug: value,
+      },
+      select: {
+        id: true,
+        published: true,
+      },
+    });
+
+    if (!post || !post.published) {
+      return res.status(404).json({
+        message: "Post not found.",
+      });
+    }
+
+    const comments = await prisma.postComment.findMany({
+      where: {
+        postId: post.id,
+        parentId: null,
+        is_approved: true,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      include: {
+        replies: {
+          where: {
+            is_approved: true,
+          },
+          orderBy: {
+            createdAt: "asc",
+          },
+          include: {
+            likes: ipAddress
+              ? {
+                  where: {
+                    ip_address: ipAddress,
+                  },
+                  select: {
+                    id: true,
+                  },
+                }
+              : false,
+          },
+        },
+        likes: ipAddress
+          ? {
+              where: {
+                ip_address: ipAddress,
+              },
+              select: {
+                id: true,
+              },
+            }
+          : false,
+      },
+    });
+
+    const formattedComments = comments.map((comment) => ({
+      id: comment.id,
+      author: comment.author,
+      content: comment.content,
+      countryCode: getCountryCodeFromIp(comment.ip_address),
+      likes: comment.likeCount,
+      liked: Array.isArray(comment.likes)
+        ? comment.likes.length > 0
+        : false,
+      replies: comment.replies.map((reply) => ({
+        id: reply.id,
+        author: reply.author,
+        content: reply.content,
+        countryCode: getCountryCodeFromIp(reply.ip_address),
+        likes: reply.likeCount,
+        liked: Array.isArray(reply.likes)
+          ? reply.likes.length > 0
+          : false,
+      })),
+    }));
+
+    const commentCount = await prisma.postComment.count({
+      where: {
+        postId: post.id,
+        is_approved: true,
+      },
+    });
+
+    return res.json({
+      comments: formattedComments,
+      commentCount,
+    });
+  } catch (error) {
+    console.error("Failed to fetch comments:", error);
+
+    return res.status(500).json({
+      message: "Could not fetch comments.",
+    });
+  }
+});
+
+router.post("/:id/comments", async (req, res) => {
+  const postId = Number(req.params.id);
+
+  if (!Number.isInteger(postId) || postId <= 0) {
+    return res.status(400).json({
+      message: "Invalid post ID.",
+    });
+  }
+
+  const parsed = commentInput.safeParse(req.body);
+
+  if (!parsed.success) {
+    return res.status(400).json({
+      message: "Invalid comment data.",
+    });
+  }
+
+  const forwardedFor = req.headers["x-forwarded-for"];
+
+  const ipAddress =
+    (typeof forwardedFor === "string"
+      ? forwardedFor.split(",")[0]?.trim()
+      : Array.isArray(forwardedFor)
+        ? forwardedFor[0]?.trim()
+        : null) ||
+    req.socket.remoteAddress ||
+    null;
+
+  try {
+    const post = await prisma.post.findUnique({
+      where: {
+        id: postId,
+      },
+      select: {
+        id: true,
+        title: true,
+        slug: true,
+        published: true,
+      },
+    });
+
+    if (!post || !post.published) {
+      return res.status(404).json({
+        message: "Post not found.",
+      });
+    }
+
+    const approvalToken = crypto.randomUUID();
+
+    const comment = await prisma.postComment.create({
+      data: {
+        postId,
+        author:
+          parsed.data.author ||
+          "Anonymous",
+        content: parsed.data.content,
+        ip_address: ipAddress,
+        is_approved: false,
+        approval_token: approvalToken,
+      },
+    });
+
+    try {
+      const notificationEmail =
+        process.env.NOTIFICATION_EMAIL;
+
+      if (!notificationEmail) {
+        console.error(
+          "NOTIFICATION_EMAIL is not configured."
+        );
+      } else {
+        const approvalUrl =
+          `${process.env.API_URL}/api/posts/comments/approve/${approvalToken}`;
+
+        await resend.emails.send({
+          from: "Comments <onboarding@resend.dev>",
+          to: notificationEmail,
+          subject: "💬 New Blog Comment",
+          html: `
+            <h2>
+              Someone submitted a new comment! 💬
+            </h2>
+
+            <p>
+              <strong>Post:</strong>
+              ${post.title}
+            </p>
+
+            <p>
+              <strong>Name:</strong>
+              ${comment.author}
+            </p>
+
+            <p>
+              <strong>Comment:</strong>
+            </p>
+
+            <p>
+              ${comment.content}
+            </p>
+
+            <p>
+              <a
+                href="${approvalUrl}"
+                style="
+                  display:inline-block;
+                  padding:12px 20px;
+                  background:#2563eb;
+                  color:#ffffff;
+                  text-decoration:none;
+                  border:1px solid #2563eb;
+                  border-radius:6px;
+                  font-weight:600;
+                "
+              >
+                Approve Comment
+              </a>
+            </p>
+          `,
+        });
+      }
+    } catch (emailError) {
+      console.error(
+        "Comment notification email failed:",
+        emailError
+      );
+    }
+
+    return res.status(201).json({
+      id: comment.id,
+      author: comment.author,
+      content: comment.content,
+      countryCode: getCountryCodeFromIp(
+        comment.ip_address
+      ),
+      likes: comment.likeCount,
+      liked: false,
+      replies: [],
+      is_approved: comment.is_approved,
+      message:
+        "Comment submitted and is awaiting approval.",
+    });
+  } catch (error) {
+    console.error(
+      "Failed to create comment:",
+      error
+    );
+
+    return res.status(500).json({
+      message: "Could not create comment.",
+    });
+  }
+});
+
+router.post("/:id/comments/:commentId/replies", async (req, res) => {
+  const postId = Number(req.params.id);
+  const commentId = Number(req.params.commentId);
+
+  if (
+    !Number.isInteger(postId) ||
+    postId <= 0 ||
+    !Number.isInteger(commentId) ||
+    commentId <= 0
+  ) {
+    return res.status(400).json({
+      message: "Invalid post or comment ID.",
+    });
+  }
+
+  const parsed = replyInput.safeParse(req.body);
+
+  if (!parsed.success) {
+    return res.status(400).json({
+      message: "Invalid reply data.",
+    });
+  }
+
+  const forwardedFor = req.headers["x-forwarded-for"];
+
+  const ipAddress =
+    (typeof forwardedFor === "string"
+      ? forwardedFor.split(",")[0]?.trim()
+      : Array.isArray(forwardedFor)
+        ? forwardedFor[0]?.trim()
+        : null) ||
+    req.socket.remoteAddress ||
+    null;
+
+  try {
+    const parentComment = await prisma.postComment.findFirst({
+      where: {
+        id: commentId,
+        postId,
+        parentId: null,
+        is_approved: true,
+        post: {
+          published: true,
+        },
+      },
+      select: {
+        id: true,
+        author: true,
+        content: true,
+        post: {
+          select: {
+            title: true,
+            slug: true,
+          },
+        },
+      },
+    });
+
+    if (!parentComment) {
+      return res.status(404).json({
+        message: "Comment not found.",
+      });
+    }
+
+    const approvalToken = crypto.randomUUID();
+
+    const reply = await prisma.postComment.create({
+      data: {
+        postId,
+        parentId: commentId,
+        author:
+          parsed.data.author ||
+          "Anonymous",
+        content: parsed.data.content,
+        ip_address: ipAddress,
+        is_approved: false,
+        approval_token: approvalToken,
+      },
+    });
+
+    try {
+      const notificationEmail =
+        process.env.NOTIFICATION_EMAIL;
+
+      if (!notificationEmail) {
+        console.error(
+          "NOTIFICATION_EMAIL is not configured."
+        );
+      } else {
+        const approvalUrl =
+          `${process.env.API_URL}/api/posts/comments/approve/${approvalToken}`;
+
+        await resend.emails.send({
+          from: "Comments <onboarding@resend.dev>",
+          to: notificationEmail,
+          subject: "💬 New Blog Comment Reply",
+          html: `
+            <h2>
+              Someone replied to a blog comment! 💬
+            </h2>
+
+            <p>
+              <strong>Post:</strong>
+              ${parentComment.post.title}
+            </p>
+
+            <p>
+              <strong>Replying to:</strong>
+              ${parentComment.author}
+            </p>
+
+            <p>
+              <strong>Original Comment:</strong>
+            </p>
+
+            <p>
+              ${parentComment.content}
+            </p>
+
+            <p>
+              <strong>Reply Author:</strong>
+              ${reply.author}
+            </p>
+
+            <p>
+              <strong>Reply:</strong>
+            </p>
+
+            <p>
+              ${reply.content}
+            </p>
+
+            <p>
+              <a
+                href="${approvalUrl}"
+                style="
+                  display:inline-block;
+                  padding:12px 20px;
+                  background:#2563eb;
+                  color:#ffffff;
+                  text-decoration:none;
+                  border:1px solid #2563eb;
+                  border-radius:6px;
+                  font-weight:600;
+                "
+              >
+                Approve Reply
+              </a>
+            </p>
+          `,
+        });
+      }
+    } catch (emailError) {
+      console.error(
+        "Reply notification email failed:",
+        emailError
+      );
+    }
+
+    return res.status(201).json({
+      id: reply.id,
+      author: reply.author,
+      content: reply.content,
+      countryCode: getCountryCodeFromIp(
+        reply.ip_address
+      ),
+      likes: reply.likeCount,
+      liked: false,
+      replies: [],
+      is_approved: reply.is_approved,
+      message:
+        "Reply submitted and is awaiting approval.",
+    });
+  } catch (error) {
+    console.error(
+      "Failed to create reply:",
+      error
+    );
+
+    return res.status(500).json({
+      message: "Could not create reply.",
+    });
+  }
+});
+
+router.get("/comments/approve/:approvalToken", async (req, res) => {
+    const { approvalToken } = req.params;
+
+    try {
+      const comment = await prisma.postComment.findUnique({
+        where: {
+          approval_token: approvalToken,
+        },
+        select: {
+          id: true,
+          postId: true,
+          is_approved: true,
+        },
+      });
+
+      if (!comment || comment.is_approved) {
+        return res.status(404).send(
+          "Invalid or expired approval link."
+        );
+      }
+
+      await prisma.$transaction(async (tx) => {
+        await tx.postComment.update({
+          where: {
+            id: comment.id,
+          },
+          data: {
+            is_approved: true,
+            approval_token: null,
+          },
+        });
+
+        await tx.post.update({
+          where: {
+            id: comment.postId,
+          },
+          data: {
+            commentCount: {
+              increment: 1,
+            },
+          },
+        });
+      });
+
+      return res.send(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Comment Approved</title>
+          </head>
+
+          <body
+            style="
+              font-family: sans-serif;
+              max-width: 600px;
+              margin: 80px auto;
+              padding: 20px;
+              text-align: center;
+            "
+          >
+            <h1>✅ Comment Approved</h1>
+
+            <p>
+              The comment has been approved successfully.
+            </p>
+          </body>
+        </html>
+      `);
+    } catch (error) {
+      console.error(
+        "Failed to approve comment:",
+        error
+      );
+
+      return res.status(500).send(
+        "Could not approve comment."
+      );
+    }
+  }
+);
+
+router.post("/:id/comments/:commentId/like", async (req, res) => {
+  const postId = Number(req.params.id);
+  const commentId = Number(req.params.commentId);
+
+  if (
+    !Number.isInteger(postId) ||
+    postId <= 0 ||
+    !Number.isInteger(commentId) ||
+    commentId <= 0
+  ) {
+    return res.status(400).json({
+      message: "Invalid post or comment ID.",
+    });
+  }
+
+  const forwardedFor = req.headers["x-forwarded-for"];
+
+  const ipAddress =
+    (typeof forwardedFor === "string"
+      ? forwardedFor.split(",")[0]?.trim()
+      : Array.isArray(forwardedFor)
+        ? forwardedFor[0]?.trim()
+        : null) ||
+    req.socket.remoteAddress ||
+    null;
+
+  if (!ipAddress) {
+    return res.status(400).json({
+      message: "Could not determine IP address.",
+    });
+  }
+
+  try {
+    const comment = await prisma.postComment.findFirst({
+      where: {
+        id: commentId,
+        postId,
+        post: {
+          published: true,
+        },
+      },
+      select: {
+        id: true,
+        likeCount: true,
+      },
+    });
+
+    if (!comment) {
+      return res.status(404).json({
+        message: "Comment not found.",
+      });
+    }
+
+    const existingLike =
+      await prisma.postCommentLike.findFirst({
+        where: {
+          commentId,
+          ip_address: ipAddress,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+    if (existingLike) {
+      const result = await prisma.$transaction(
+        async (tx) => {
+          await tx.postCommentLike.delete({
+            where: {
+              id: existingLike.id,
+            },
+          });
+
+          const updatedComment =
+            await tx.postComment.update({
+              where: {
+                id: commentId,
+              },
+              data: {
+                likeCount: {
+                  decrement: 1,
+                },
+              },
+              select: {
+                likeCount: true,
+              },
+            });
+
+          const updatedPost =
+            await tx.post.update({
+              where: {
+                id: postId,
+              },
+              data: {
+                likeCount: {
+                  decrement: 1,
+                },
+              },
+              select: {
+                likeCount: true,
+              },
+            });
+
+          return {
+            commentLikeCount:
+              updatedComment.likeCount,
+            postLikeCount:
+              updatedPost.likeCount,
+          };
+        }
+      );
+
+      return res.status(200).json({
+        liked: false,
+        likeCount: result.commentLikeCount,
+        postLikeCount: result.postLikeCount,
+      });
+    }
+
+    const result = await prisma.$transaction(
+      async (tx) => {
+        await tx.postCommentLike.create({
+          data: {
+            commentId,
+            ip_address: ipAddress,
+          },
+        });
+
+        const updatedComment =
+          await tx.postComment.update({
+            where: {
+              id: commentId,
+            },
+            data: {
+              likeCount: {
+                increment: 1,
+              },
+            },
+            select: {
+              likeCount: true,
+            },
+          });
+
+        const updatedPost =
+          await tx.post.update({
+            where: {
+              id: postId,
+            },
+            data: {
+              likeCount: {
+                increment: 1,
+              },
+            },
+            select: {
+              likeCount: true,
+            },
+          });
+
+        return {
+          commentLikeCount:
+            updatedComment.likeCount,
+          postLikeCount:
+            updatedPost.likeCount,
+        };
+      }
+    );
+
+    return res.status(200).json({
+      liked: true,
+      likeCount: result.commentLikeCount,
+      postLikeCount: result.postLikeCount,
+    });
+  } catch (error) {
+    console.error(
+      "Failed to toggle comment like:",
+      error
+    );
+
+    return res.status(500).json({
+      message: "Could not update comment like.",
+    });
+  }
 });
 
 router.get("/:slug", async (req, res) => {

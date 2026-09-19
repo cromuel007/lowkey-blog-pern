@@ -1,5 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, Heart, MessageCircle, Share2, ThumbsUp } from "lucide-react";
+import {
+    ArrowLeft,
+    ArrowRight,
+    Heart,
+    MessageCircle,
+    Share2,
+    ThumbsUp,
+} from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import DOMPurify from "dompurify";
 import {
@@ -20,6 +27,8 @@ import { getAsset } from "../utils/useAssets";
 import { useLoadingDots } from "../hooks/useLoadingDots";
 import Comments from "../components/Comments";
 
+const REFRESH_INTERVAL = 10000;
+
 export default function PostPage() {
     const { slug } = useParams();
 
@@ -35,81 +44,101 @@ export default function PostPage() {
 
     const [showShareButtons, setShowShareButtons] = useState(false);
 
-    const [showCommentsComingSoon, setShowCommentsComingSoon] = useState(false);
+    const [showComments, setShowComments] = useState(true);
     const commentsRef = useRef<HTMLDivElement>(null);
 
+    const fetchPost = async () => {
+        if (!slug) {
+            return;
+        }
+
+        try {
+            const [postResponse, postsResponse] = await Promise.all([
+                api.get<Post>(`/api/posts/${slug}`),
+                api.get<Post[]>("/api/posts"),
+            ]);
+
+            const currentPost = postResponse.data;
+
+            setPost(currentPost);
+            setPosts(postsResponse.data);
+
+            // Sync like state from the API
+            setLiked(currentPost.liked ?? false);
+            setLikeCount(currentPost.likeCount ?? 0);
+
+            const title =
+                currentPost.seoTitle || currentPost.title;
+
+            const description =
+                currentPost.seoDescription ||
+                currentPost.excerpt ||
+                "";
+
+            const url =
+                `https://blog.tubbylab.com/posts/${currentPost.slug}`;
+
+            const image =
+                currentPost.coverImageUrl ||
+                "https://blog.tubbylab.com/og-image.png";
+
+            document.title = title;
+
+            const setMeta = (
+                attribute: "name" | "property",
+                key: string,
+                content: string
+            ) => {
+                let meta = document.querySelector(
+                    `meta[${attribute}="${key}"]`
+                );
+
+                if (!meta) {
+                    meta = document.createElement("meta");
+                    meta.setAttribute(attribute, key);
+                    document.head.appendChild(meta);
+                }
+
+                meta.setAttribute("content", content);
+            };
+
+            setMeta("name", "description", description);
+
+            setMeta("property", "og:title", title);
+            setMeta("property", "og:description", description);
+            setMeta("property", "og:url", url);
+            setMeta("property", "og:type", "article");
+            setMeta("property", "og:image", image);
+
+            setMeta(
+                "name",
+                "twitter:card",
+                "summary_large_image"
+            );
+            setMeta("name", "twitter:title", title);
+            setMeta(
+                "name",
+                "twitter:description",
+                description
+            );
+            setMeta("name", "twitter:image", image);
+
+            setError("");
+        } catch (error) {
+            console.error("Failed to fetch post:", error);
+            setError("Post not found.");
+        }
+    };
+
+    // Initial fetch + automatic refresh every 10 seconds
     useEffect(() => {
-        Promise.all([
-            api.get<Post>(`/api/posts/${slug}`),
-            api.get<Post[]>("/api/posts"),
-        ])
-            .then(([postResponse, postsResponse]) => {
-                const currentPost = postResponse.data;
+        fetchPost();
 
-                setPost(currentPost);
-                setPosts(postsResponse.data);
+        const interval = setInterval(() => {
+            fetchPost();
+        }, REFRESH_INTERVAL);
 
-                // Sync like state from the API
-                setLiked(currentPost.liked ?? false);
-                setLikeCount(currentPost.likeCount ?? 0);
-
-                const title =
-                    currentPost.seoTitle || currentPost.title;
-
-                const description =
-                    currentPost.seoDescription ||
-                    currentPost.excerpt ||
-                    "";
-
-                const url =
-                    `https://blog.tubbylab.com/posts/${currentPost.slug}`;
-
-                const image =
-                    currentPost.coverImageUrl ||
-                    "https://blog.tubbylab.com/og-image.png";
-
-                document.title = title;
-
-                const setMeta = (
-                    attribute: "name" | "property",
-                    key: string,
-                    content: string
-                ) => {
-                    let meta = document.querySelector(
-                        `meta[${attribute}="${key}"]`
-                    );
-
-                    if (!meta) {
-                        meta = document.createElement("meta");
-                        meta.setAttribute(attribute, key);
-                        document.head.appendChild(meta);
-                    }
-
-                    meta.setAttribute("content", content);
-                };
-
-                setMeta("name", "description", description);
-
-                setMeta("property", "og:title", title);
-                setMeta("property", "og:description", description);
-                setMeta("property", "og:url", url);
-                setMeta("property", "og:type", "article");
-                setMeta("property", "og:image", image);
-
-                setMeta(
-                    "name",
-                    "twitter:card",
-                    "summary_large_image"
-                );
-                setMeta("name", "twitter:title", title);
-                setMeta(
-                    "name",
-                    "twitter:description",
-                    description
-                );
-                setMeta("name", "twitter:image", image);
-            })
-            .catch(() => setError("Post not found."));
+        return () => clearInterval(interval);
     }, [slug]);
 
     useEffect(() => {
@@ -118,14 +147,17 @@ export default function PostPage() {
                 commentsRef.current &&
                 !commentsRef.current.contains(event.target as Node)
             ) {
-                setShowCommentsComingSoon(false);
+                setShowComments(false);
             }
         };
 
         document.addEventListener("mousedown", handleClickOutside);
 
         return () => {
-            document.removeEventListener("mousedown", handleClickOutside);
+            document.removeEventListener(
+                "mousedown",
+                handleClickOutside
+            );
         };
     }, []);
 
@@ -389,14 +421,20 @@ export default function PostPage() {
                         type="button"
                         title="Comments"
                         onClick={() =>
-                            setShowCommentsComingSoon(
-                                (previous) => !previous
-                            )
+                            setShowComments((previous) => !previous)
                         }
                         className="read-article-link inline-flex items-center"
                     >
-                        <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate transition-colors hover:border-[#d4a017]">
-                            <MessageCircle className="h-4 w-4 stroke-[2]" />
+                        <span
+                            className={`inline-flex h-8 w-8 items-center justify-center rounded-full border transition-colors ${(post.commentCount ?? 0) > 0
+                                ? "border-[#d4a017] bg-[#d4a017]"
+                                : "border-slate hover:border-[#d4a017]"
+                                }`}
+                        >
+                            <MessageCircle
+                                className={`h-4 w-4 stroke-[2] transition-colors ${(post.commentCount ?? 0) > 0 ? "text-white" : ""
+                                    }`}
+                            />
                         </span>
                     </button>
 
@@ -466,7 +504,12 @@ export default function PostPage() {
             </div>
 
             {/* Comments section */}
-            {showCommentsComingSoon && <Comments />}
+            {showComments && (
+                <Comments
+                    postId={post.id}
+                    slug={post.slug}
+                />
+            )}
 
             {/* Previous / Next */}
             <div className="mt-14 grid grid-cols-1 gap-4 border-t border-line pt-0 sm:grid-cols-2 sm:pt-8 sm:-mb-5">

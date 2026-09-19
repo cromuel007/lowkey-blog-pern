@@ -34,14 +34,51 @@ model Post {
   tags            PostTag[]
   shares          PostShare[]
   likes           PostLike[]
+  comments        PostComment[]
 
   shareCount      Int        @default(0)
   likeCount       Int        @default(0)
+  commentCount    Int        @default(0)
 
   @@index([published, publishedAt])
   @@index([categoryId])
 }
 
+model PostComment {
+  id          Int      @id @default(autoincrement())
+  postId      Int
+  author      String
+  content     String
+  parentId    Int?
+  ip_address  String?  @db.VarChar(45)
+  is_approved     Boolean  @default(false)
+  approval_token  String?  @unique @db.Text
+  likeCount   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  post        Post             @relation(fields: [postId], references: [id], onDelete: Cascade)
+  parent      PostComment?     @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies     PostComment[]    @relation("CommentReplies")
+  likes       PostCommentLike[]
+
+  @@index([postId])
+  @@index([parentId])
+  @@index([ip_address])
+}
+
+model PostCommentLike {
+  id          Int      @id @default(autoincrement())
+  commentId   Int
+  ip_address  String?  @db.VarChar(45)
+  createdAt   DateTime @default(now())
+
+  comment     PostComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@unique([commentId, ip_address])
+  @@index([commentId])
+  @@index([ip_address])
+}
 
 model PostShare {
   id        Int      @id @default(autoincrement())
