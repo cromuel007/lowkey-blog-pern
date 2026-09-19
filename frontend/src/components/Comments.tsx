@@ -874,7 +874,7 @@ export default function Comments({
 
                 {/* New comment */}
                 <div className="flex gap-3">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-line bg-surface-alt text-sm font-bold text-white">
                         <CountryFlag
                             countryCode={null}
                             entryId={0}
@@ -980,7 +980,7 @@ export default function Comments({
                                     >
                                         <div className="flex gap-3">
                                             {/* Avatar */}
-                                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold text-ink">
+                                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-line bg-surface-alt text-sm font-bold text-ink">
                                                 <CountryFlag
                                                     countryCode={
                                                         comment.countryCode
@@ -1127,7 +1127,7 @@ export default function Comments({
                                                 {replyingTo ===
                                                     comment.id && (
                                                         <div className="mt-4 flex gap-3 pl-2">
-                                                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white">
+                                                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-line bg-surface-alt text-xs font-bold text-white">
                                                                 <CountryFlag
                                                                     countryCode={
                                                                         null
@@ -1261,7 +1261,7 @@ export default function Comments({
                                                                         }
                                                                         className="flex gap-3"
                                                                     >
-                                                                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-ink">
+                                                                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-line bg-surface-alt text-xs font-bold text-ink">
                                                                             <CountryFlag
                                                                                 countryCode={
                                                                                     reply.countryCode
