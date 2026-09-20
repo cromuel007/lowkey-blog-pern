@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import * as Flags from "country-flag-icons/react/3x2";
 import { api } from "../api";
+import { motion } from "motion/react";
 import { useLoadingDots } from "../hooks/useLoadingDots";
 
 const REFRESH_INTERVAL = 10000;
@@ -1370,7 +1371,23 @@ export default function Comments({
                             {comments.length ===
                                 0 && (
                                     <p className="py-6 text-center text-sm text-muted">
-                                        No comments yet. Be the first to share your thoughts! 👋
+                                        No comments yet. Be the first to share your thoughts!{" "}
+                                        <motion.span
+                                            animate={{
+                                                rotate: [0, 20, -20, 15, -15, 0],
+                                                x: [0, 3, -3, 3, -3, 0],
+                                                scale: [1, 1.15, 0.9, 1.1, 0.95, 1],
+                                            }}
+                                            transition={{
+                                                duration: 0.8,
+                                                repeat: Infinity,
+                                                repeatDelay: 1,
+                                                ease: "easeInOut",
+                                            }}
+                                            className="inline-block"
+                                        >
+                                            👋
+                                        </motion.span>
                                     </p>
                                 )}
                         </>
