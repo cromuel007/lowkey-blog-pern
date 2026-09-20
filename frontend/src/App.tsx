@@ -25,7 +25,15 @@ import Navbar from "./components/Navbar";
 import ContactModal from "./components/ContactModal";
 import { ChevronUp } from "lucide-react";
 
-function Layout({ children }: { children: React.ReactNode }) {
+function Layout({
+  children,
+  searchQuery,
+  onSearch,
+}: {
+  children: React.ReactNode;
+  searchQuery: string;
+  onSearch: (query: string) => void;
+}) {
   const location = useLocation();
 
   const isAdmin =
@@ -75,7 +83,10 @@ function Layout({ children }: { children: React.ReactNode }) {
   // Public pages use the public layout.
   return (
     <div className="flex min-h-screen flex-col bg-white text-ink">
-      <Navbar onContactClick={() => setIsContactOpen(true)} />
+      <Navbar
+        onContactClick={() => setIsContactOpen(true)}
+        onSearch={onSearch}
+      />
 
       <main className="mx-auto w-full max-w-[1080px] flex-1 px-4">
         {children}
@@ -103,11 +114,15 @@ function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+  const [searchQuery, setSearchQuery] = useState("");
   return (
-    <Layout>
+    <Layout
+      searchQuery={searchQuery}
+      onSearch={setSearchQuery}
+    >
       <Routes>
         {/* Public */}
-        <Route path="/" element={<Home />} />
+        <Route path="/" element={<Home searchQuery={searchQuery} />} />
         <Route path="/posts/:slug" element={<PostPage />} />
 
         {/* Admin */}

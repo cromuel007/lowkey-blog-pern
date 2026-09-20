@@ -1,5 +1,10 @@
 import { useEffect, useState } from "react";
-import { ArrowRight, Heart, MessageCircle, Share2, ThumbsUp } from "lucide-react";
+import {
+    ArrowRight,
+    MessageCircle,
+    Share2,
+    ThumbsUp,
+} from "lucide-react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
 import type { Post } from "../types";
@@ -8,19 +13,38 @@ import { useLoadingDots } from "../hooks/useLoadingDots";
 
 const REFRESH_INTERVAL = 60000;
 
-export default function Home() {
+interface PostPageProps {
+    searchQuery: string;
+}
+
+export default function Home({ searchQuery }: PostPageProps) {
     const [posts, setPosts] = useState<Post[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const loadingDots = useLoadingDots();
 
-    const fetchPosts = async (showLoading = false) => {
+    const fetchPosts = async (
+        showLoading = false,
+        query = searchQuery
+    ) => {
         try {
             if (showLoading) {
                 setLoading(true);
             }
 
-            const response = await api.get<Post[]>("/api/posts");
+            const params = new URLSearchParams();
+
+            if (query.trim()) {
+                params.set("search", query.trim());
+            }
+
+            const queryString = params.toString();
+
+            const response = await api.get<Post[]>(
+                queryString
+                    ? `/api/posts?${queryString}`
+                    : "/api/posts"
+            );
 
             setPosts(response.data);
             setError("");
@@ -34,22 +58,28 @@ export default function Home() {
     };
 
     /*
-     * Initial fetch
+     * Fetch posts whenever the search query changes.
      */
     useEffect(() => {
-        fetchPosts(true);
-    }, []);
+        const timeout = setTimeout(() => {
+            fetchPosts(true, searchQuery);
+        }, 800);
+
+        return () => {
+            clearTimeout(timeout);
+        };
+    }, [searchQuery]);
 
     /*
-     * Auto refresh
+     * Auto refresh using the current search query.
      */
     useEffect(() => {
         const interval = setInterval(() => {
-            fetchPosts();
+            fetchPosts(false, searchQuery);
         }, REFRESH_INTERVAL);
 
         return () => clearInterval(interval);
-    }, []);
+    }, [searchQuery]);
 
     return (
         <section>
@@ -88,15 +118,24 @@ export default function Home() {
                     {[...posts]
                         .sort(
                             (a, b) =>
-                                new Date(b.publishedAt || b.createdAt).getTime() -
-                                new Date(a.publishedAt || a.createdAt).getTime()
+                                new Date(
+                                    b.publishedAt || b.createdAt
+                                ).getTime() -
+                                new Date(
+                                    a.publishedAt || a.createdAt
+                                ).getTime()
                         )
                         .map((post) => (
                             <article
                                 className="flex h-full cursor-pointer flex-col overflow-hidden rounded-2xl border border-line bg-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
                                 key={post.id}
                                 onClick={(e) => {
-                                    if ((e.target as HTMLElement).closest("a")) return;
+                                    if (
+                                        (e.target as HTMLElement).closest("a")
+                                    ) {
+                                        return;
+                                    }
+
                                     window.location.href = `/posts/${post.slug}`;
                                 }}
                             >
