@@ -20,6 +20,22 @@ type Comment = {
     replies: Comment[];
 };
 
+function createPendingComment(
+    author: string,
+    content: string,
+    id: number
+): Comment {
+    return {
+        id,
+        author,
+        content,
+        countryCode: null,
+        likes: 0,
+        liked: false,
+        replies: [],
+    };
+}
+
 type CommentsResponse = {
     comments: Comment[];
     commentCount: number;
@@ -392,9 +408,6 @@ export default function Comments({
         setIsSubmittingReply,
     ] = useState<number | null>(null);
 
-    const [pendingMessage, setPendingMessage] =
-        useState("");
-
     const [error, setError] =
         useState("");
 
@@ -424,9 +437,81 @@ export default function Comments({
 
                 if (cancelled) return;
 
-                setComments(
-                    response.data.comments || []
-                );
+                const fetchedComments =
+                    response.data.comments || [];
+
+                setComments((previous) => {
+                    /*
+                     * Keep locally submitted comments and replies
+                     * visible until their approved versions appear
+                     * in the API response.
+                     *
+                     * Temporary entries use negative IDs.
+                     */
+                    const pendingComments =
+                        previous.filter(
+                            (comment) => comment.id < 0
+                        );
+
+                    const mergedComments =
+                        fetchedComments.map((comment) => {
+                            const previousComment =
+                                previous.find(
+                                    (item) =>
+                                        item.id === comment.id
+                                );
+
+                            if (!previousComment) {
+                                return comment;
+                            }
+
+                            const pendingReplies =
+                                previousComment.replies.filter(
+                                    (reply) => reply.id < 0
+                                );
+
+                            const stillPendingReplies =
+                                pendingReplies.filter(
+                                    (pendingReply) =>
+                                        !comment.replies.some(
+                                            (reply) =>
+                                                reply.author ===
+                                                pendingReply.author &&
+                                                reply.content ===
+                                                pendingReply.content
+                                        )
+                                );
+
+                            return {
+                                ...comment,
+                                replies: [
+                                    ...comment.replies,
+                                    ...stillPendingReplies,
+                                ],
+                            };
+                        });
+
+                    /*
+                     * Keep a pending top-level comment until the
+                     * approved version is returned by the API.
+                     */
+                    const stillPendingComments =
+                        pendingComments.filter(
+                            (pendingComment) =>
+                                !fetchedComments.some(
+                                    (comment) =>
+                                        comment.author ===
+                                        pendingComment.author &&
+                                        comment.content ===
+                                        pendingComment.content
+                                )
+                        );
+
+                    return [
+                        ...mergedComments,
+                        ...stillPendingComments,
+                    ];
+                });
 
                 setCommentCount(
                     response.data.commentCount ?? 0
@@ -439,9 +524,7 @@ export default function Comments({
                     error
                 );
 
-                setError(
-                    "Could not load comments."
-                );
+                setError("Could not load comments.");
             } finally {
                 if (!cancelled) {
                     setIsLoading(false);
@@ -465,21 +548,15 @@ export default function Comments({
     }, [slug]);
 
     const addComment = async () => {
-        const content =
-            commentText.trim();
+        const content = commentText.trim();
 
         const author =
             commentAuthor.trim() ||
             `Anonymous ${getAnimalName(
-                Math.floor(
-                    Math.random() * 10
-                )
+                Math.floor(Math.random() * 10)
             )}`;
 
-        if (
-            !content ||
-            isSubmittingComment
-        ) {
+        if (!content || isSubmittingComment) {
             return;
         }
 
@@ -487,14 +564,9 @@ export default function Comments({
          * Validate before making the API request.
          */
         setError("");
-        setPendingMessage("");
         setReplyStatus(null);
 
-        if (
-            hasDisallowedUrlOrEmail(
-                content
-            )
-        ) {
+        if (hasDisallowedUrlOrEmail(content)) {
             setError(
                 "Email addresses and external links are not allowed. Only Giphy links are allowed."
             );
@@ -512,12 +584,26 @@ export default function Comments({
                 }
             );
 
+            /*
+             * Show the comment immediately as a normal comment.
+             * The negative ID marks it as temporary so the next
+             * refresh can replace it with the real database record.
+             */
+            const pendingComment =
+                createPendingComment(
+                    author,
+                    content,
+                    -Date.now()
+                );
+
+            setComments((previous) => [
+                pendingComment,
+                ...previous,
+            ]);
+
             setCommentAuthor("");
             setCommentText("");
-
-            setPendingMessage(
-                "Your comment has been submitted and is awaiting approval."
-            );
+            setShowCommentForm(false);
         } catch (error) {
             console.error(
                 "Failed to submit comment:",
@@ -535,15 +621,12 @@ export default function Comments({
     const addReply = async (
         commentId: number
     ) => {
-        const content =
-            replyText.trim();
+        const content = replyText.trim();
 
         const author =
             replyAuthor.trim() ||
             `Anonymous ${getAnimalName(
-                Math.floor(
-                    Math.random() * 10
-                )
+                Math.floor(Math.random() * 10)
             )}`;
 
         if (
@@ -557,14 +640,9 @@ export default function Comments({
          * Validate before making the API request.
          */
         setError("");
-        setPendingMessage("");
         setReplyStatus(null);
 
-        if (
-            hasDisallowedUrlOrEmail(
-                content
-            )
-        ) {
+        if (hasDisallowedUrlOrEmail(content)) {
             setReplyStatus({
                 commentId,
                 type: "error",
@@ -576,9 +654,7 @@ export default function Comments({
         }
 
         try {
-            setIsSubmittingReply(
-                commentId
-            );
+            setIsSubmittingReply(commentId);
 
             await api.post(
                 `/api/posts/${postId}/comments/${commentId}/replies`,
@@ -588,16 +664,45 @@ export default function Comments({
                 }
             );
 
+            /*
+             * Show the reply immediately as a normal reply.
+             * The negative ID marks it as temporary so the next
+             * refresh can replace it with the real database record.
+             */
+            const pendingReply =
+                createPendingComment(
+                    author,
+                    content,
+                    -Date.now()
+                );
+
+            setComments((previous) =>
+                previous.map((comment) =>
+                    comment.id === commentId
+                        ? {
+                            ...comment,
+                            replies: [
+                                ...comment.replies,
+                                pendingReply,
+                            ],
+                        }
+                        : comment
+                )
+            );
+
+            /*
+             * Make sure the replies are visible immediately.
+             */
+            setShowReplies((previous) =>
+                previous.includes(commentId)
+                    ? previous
+                    : [...previous, commentId]
+            );
+
             setReplyAuthor("");
             setReplyText("");
             setReplyingTo(null);
-
-            setReplyStatus({
-                commentId,
-                type: "success",
-                message:
-                    "Your reply has been submitted and is awaiting approval.",
-            });
+            setReplyStatus(null);
         } catch (error) {
             console.error(
                 "Failed to submit reply:",
@@ -835,31 +940,20 @@ export default function Comments({
     };
 
     /*
-     * Auto-dismiss status messages
-     * after 5 seconds.
+     * Auto-dismiss error/status messages after 5 seconds.
      */
     useEffect(() => {
-        if (
-            !pendingMessage &&
-            !error &&
-            !replyStatus
-        ) {
+        if (!error && !replyStatus) {
             return;
         }
 
         const timeout = setTimeout(() => {
-            setPendingMessage("");
             setError("");
             setReplyStatus(null);
-            setShowCommentForm(false);
         }, 5000);
 
         return () => clearTimeout(timeout);
-    }, [
-        pendingMessage,
-        error,
-        replyStatus,
-    ]);
+    }, [error, replyStatus]);
 
     return (
         <div className="mt-8 border-t border-line pt-6">
@@ -867,11 +961,17 @@ export default function Comments({
                 <div className="mb-5 flex items-center justify-between">
                     <h2 className="text-xl font-bold text-ink">
                         Comments
-                        {commentCount > 0 && (
-                            <span className="ml-2 text-sm font-medium text-muted">
-                                ({commentCount})
-                            </span>
-                        )}
+                        {(commentCount +
+                            comments.filter(
+                                (comment) => comment.id < 0
+                            ).length) > 0 && (
+                                <span className="ml-2 text-sm font-medium text-muted">
+                                    ({commentCount +
+                                        comments.filter(
+                                            (comment) => comment.id < 0
+                                        ).length})
+                                </span>
+                            )}
                     </h2>
 
                     {!showCommentForm && (
@@ -960,13 +1060,6 @@ export default function Comments({
                             </div>
                         </div>
                     </>
-                )}
-
-                {/* Main comment status messages */}
-                {pendingMessage && (
-                    <div className="ml-[48px] mt-4 w-[calc(100%-48px)] rounded-xl border border-[#d4a017]/30 bg-[#d4a017]/10 px-4 py-3 text-center text-sm text-slate">
-                        {pendingMessage}
-                    </div>
                 )}
 
                 {error && (
@@ -1089,9 +1182,6 @@ export default function Comments({
                                                                 ""
                                                             );
                                                             setReplyAuthor(
-                                                                ""
-                                                            );
-                                                            setPendingMessage(
                                                                 ""
                                                             );
                                                             setError(
