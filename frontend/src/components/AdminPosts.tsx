@@ -40,7 +40,7 @@ export default function Admin() {
     const [search, setSearch] = useState("");
 
     const [sortBy, setSortBy] = useState<
-        "title" | "category" | "published" | "publishedAt"
+        "title" | "category" | "shares" | "likes" | "comments" | "published" | "publishedAt"
     >("publishedAt");
 
     const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
@@ -101,7 +101,7 @@ export default function Admin() {
     }, [message]);
 
     function handleSort(
-        column: "title" | "category" | "published" | "publishedAt"
+        column: "title" | "category" | "shares" | "likes" | "comments" | "published" | "publishedAt"
     ) {
         if (sortBy === column) {
             setSortOrder((order) =>
@@ -121,6 +121,9 @@ export default function Admin() {
         column:
         | "title"
         | "category"
+        | "shares" 
+        | "likes" 
+        | "comments"
         | "published"
         | "publishedAt";
     }) {
@@ -294,6 +297,48 @@ export default function Admin() {
                                         <button
                                             type="button"
                                             onClick={() =>
+                                                handleSort("shares")
+                                            }
+                                            className="inline-flex items-center gap-1.5 transition-colors hover:text-ink"
+                                            title="Sort by category"
+                                        >
+                                            <span>Shares</span>
+                                            <SortIndicator column="shares" />
+                                        </button>
+                                    </th>
+
+                                    <th className="px-6 py-4 text-sm font-bold uppercase tracking-wide">
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                handleSort("likes")
+                                            }
+                                            className="inline-flex items-center gap-1.5 transition-colors hover:text-ink"
+                                            title="Sort by category"
+                                        >
+                                            <span>Likes</span>
+                                            <SortIndicator column="likes" />
+                                        </button>
+                                    </th>
+
+                                    <th className="px-6 py-4 text-sm font-bold uppercase tracking-wide">
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                handleSort("comments")
+                                            }
+                                            className="inline-flex items-center gap-1.5 transition-colors hover:text-ink"
+                                            title="Sort by category"
+                                        >
+                                            <span>Comments</span>
+                                            <SortIndicator column="comments" />
+                                        </button>
+                                    </th>
+
+                                    <th className="px-6 py-4 text-sm font-bold uppercase tracking-wide">
+                                        <button
+                                            type="button"
+                                            onClick={() =>
                                                 handleSort("published")
                                             }
                                             className="inline-flex items-center gap-1.5 transition-colors hover:text-ink"
@@ -331,7 +376,7 @@ export default function Admin() {
                                         className="transition-colors hover:bg-surface/50"
                                     >
                                         <td className="px-6 py-4">
-                                            <div className="max-w-[550px]">
+                                            <div className="max-w-[220px]">
                                                 <p className="truncate text-sm font-semibold text-ink">
                                                     {post.title}
                                                 </p>
@@ -345,6 +390,18 @@ export default function Admin() {
                                         <td className="px-6 py-4 text-sm text-slate">
                                             {post.category?.name ||
                                                 "General"}
+                                        </td>
+
+                                        <td className="px-6 py-4 text-sm text-slate">
+                                            {post.shareCount || 0}
+                                        </td>
+
+                                        <td className="px-6 py-4 text-sm text-slate">
+                                            {post.likeCount || 0}
+                                        </td>
+
+                                        <td className="px-6 py-4 text-sm text-slate">
+                                           {post.commentCount || 0}
                                         </td>
 
                                         <td className="px-6 py-4">
