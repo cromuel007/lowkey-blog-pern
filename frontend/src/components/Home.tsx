@@ -144,8 +144,8 @@ export default function Home({ searchQuery }: PostPageProps) {
                                         post.coverImageUrl ||
                                         getAsset("sky.png")
                                     }
-                                    alt={post.title}
-                                    className="aspect-[16/9] w-full object-cover"
+                                    alt={post.slug || "sky"}
+                                    className="aspect-[16/9] w-full object-cover transition-transform duration-700 ease-out hover:scale-110"
                                 />
 
                                 <div className="flex flex-1 flex-col p-6">

@@ -279,11 +279,13 @@ export default function PostPage() {
                 </p>
             )}
 
-            <img
-                className="my-8 max-h-[300px] w-full rounded-2xl object-cover"
-                src={post.coverImageUrl || getAsset("sky.png")}
-                alt=""
-            />
+            <div className="group my-8 max-h-[300px] overflow-hidden rounded-2xl">
+                <img
+                    className="w-full max-h-[300px] rounded-2xl object-cover object-center group-hover:animate-[imagePan_4s_ease-in-out_forwards]"
+                    src={post.coverImageUrl || getAsset("sky.png")}
+                    alt={post.slug || "sky"}
+                />
+            </div>
 
             <div className="prose max-w-none text-slate">
                 <div
