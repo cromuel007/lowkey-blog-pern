@@ -84,12 +84,10 @@ export default function Navbar({ onContactClick, onSearch }: NavbarProps) {
                         <input
                           type="search"
                           value={searchQuery}
-                          onChange={(e) =>
-                            handleSearchChange(e.target.value)
-                          }
+                          onChange={(e) => handleSearchChange(e.target.value)}
                           placeholder="Search posts..."
                           autoFocus
-                          className="w-120 rounded-lg border border-line bg-white py-2 pl-9 pr-3 text-sm outline-none transition-colors focus:border-accent"
+                          className="w-120 appearance-none rounded-lg border border-line bg-white py-2 pl-9 pr-3 text-sm outline-none transition-colors focus:border-accent [&::-webkit-search-cancel-button]:appearance-none"
                         />
                       </div>
 
@@ -203,7 +201,7 @@ export default function Navbar({ onContactClick, onSearch }: NavbarProps) {
                 onChange={(e) => handleSearchChange(e.target.value)}
                 placeholder="Search posts..."
                 autoFocus
-                className="w-full rounded-lg border border-line bg-white py-2 pl-10 pr-3 text-sm outline-none transition-colors focus:border-accent"
+                className="w-full rounded-lg border border-line bg-white py-2 pl-10 pr-3 text-sm outline-none transition-colors focus:border-accent [&::-webkit-search-cancel-button]:appearance-none"
               />
             </div>
           </div>

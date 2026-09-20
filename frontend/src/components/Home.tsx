@@ -83,19 +83,44 @@ export default function Home({ searchQuery }: PostPageProps) {
 
     return (
         <section>
-            <div className="max-w-[1000px] py-6 sm:py-16">
+            <div className="max-w-[1000px] pt-6 pb-4 sm:pt-16 sm:pb-6">
                 <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-accent">
-                    MY BLOG
+                    MY QUESTIONABLE CORNER
                 </p>
+                {!searchQuery.trim() ? (
+                    <>
+                        <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-ink sm:text-6xl">
+                            A lowkey place for highkey questionable ideas.
+                        </h1>
 
-                <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-ink sm:text-6xl">
-                    A lowkey place for highkey questionable ideas.
-                </h1>
+                        <p className="mt-5 text-xl text-slate">
+                            A developer-focused blog where bugs become features and
+                            features become bugs. 😄
+                        </p>
+                    </>
+                ) : (
+                    <>
+                        <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-ink sm:text-6xl">
+                            {loading || error || posts.length > 0
+                                ? "Latest Posts"
+                                : "Nothing here..."}
+                        </h1>
 
-                <p className="mt-5 text-xl text-slate">
-                    A developer-focused blog where bugs become features and
-                    features become bugs. 😄
-                </p>
+                        <p className="mt-5 text-xl text-slate">
+                            {loading || error || posts.length > 0
+                                ? "Let's see what we dug up..."
+                                : "Well, that's awkward... nothing matched. 😅"}
+                        </p>
+                    </>
+                )}
+            </div>
+
+            <div className="max-w-[1000px] pt-0 pb-6 sm:pt-2 sm:pb-8">
+                {!searchQuery.trim() && (
+                    <h2 className="text-3xl font-extrabold tracking-tight text-ink sm:text-4xl">
+                        Latest Post
+                    </h2>
+                )}
             </div>
 
             {error && (
@@ -218,7 +243,7 @@ export default function Home({ searchQuery }: PostPageProps) {
             )}
 
             {!loading && !posts.length && !error && (
-                <div className="flex min-h-[300px] items-center justify-center pb-50 text-center text-slate">
+                <div className="flex min-h-[300px] items-center justify-center pt-29.5 pb-59.5 text-center text-slate">
                     Nothing here yet... even the bugs took a day off. 🐛😴
                 </div>
             )}
