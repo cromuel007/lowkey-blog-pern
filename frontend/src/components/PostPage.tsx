@@ -24,6 +24,7 @@ import {
 import { api } from "../api";
 import type { Post } from "../types";
 import { getAsset } from "../utils/useAssets";
+import { motion } from "motion/react";
 import { useLoadingDots } from "../hooks/useLoadingDots";
 import Comments from "../components/Comments";
 
@@ -126,7 +127,7 @@ export default function PostPage() {
             setError("");
         } catch (error) {
             console.error("Failed to fetch post:", error);
-            setError("Post not found. 😵");
+            setError("Post not found.");
         }
     };
 
@@ -164,11 +165,29 @@ export default function PostPage() {
     if (error) {
         return (
             <div className="flex min-h-[300px] flex-col items-center justify-center pt-80 pb-100 text-center text-slate">
-                <p>{error}</p>
+                <p>
+                    {error}{" "}
+                    <motion.span
+                        animate={{
+                            rotate: [0, 20, -20, 15, -15, 0],
+                            x: [0, 3, -3, 3, -3, 0],
+                            scale: [1, 1.15, 0.9, 1.1, 0.95, 1],
+                        }}
+                        transition={{
+                            duration: 0.8,
+                            repeat: Infinity,
+                            repeatDelay: 1,
+                            ease: "easeInOut",
+                        }}
+                        className="inline-block"
+                    >
+                        😵
+                    </motion.span>
+                </p>
 
                 <Link
                     to="/"
-                    className="pt-4 read-article-link inline-flex items-center gap-1 font-bold"
+                    className="pt-4 -mb-4 read-article-link inline-flex items-center gap-1 font-bold"
                 >
                     <ArrowLeft className="mt-0.5 h-4 w-4" />
                     Pretend this never happened

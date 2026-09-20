@@ -20,6 +20,7 @@
     "country-flag-icons": "^1.6.20",
     "dompurify": "^3.4.15",
     "lucide-react": "^1.45.0",
+    "motion": "^13.4.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-markdown": "^10.1.0",

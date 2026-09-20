@@ -9,6 +9,7 @@ import { Link } from "react-router-dom";
 import { api } from "../api";
 import type { Post } from "../types";
 import { getAsset } from "../utils/useAssets";
+import { motion } from "motion/react";
 import { useLoadingDots } from "../hooks/useLoadingDots";
 
 const REFRESH_INTERVAL = 60000;
@@ -245,8 +246,69 @@ export default function Home({ searchQuery }: PostPageProps) {
             )}
 
             {!loading && !posts.length && !error && (
-                <div className="flex min-h-[300px] items-center justify-center pt-29.5 pb-59.5 text-center text-slate">
-                    Nothing here yet... even the bugs took a day off. 🐛😴
+                <div className="flex min-h-[300px] flex-col items-center justify-center pt-29.5 pb-59.5 text-center text-slate">
+                    <div className="flex items-center justify-center gap-4">
+                        <motion.div
+                            animate={{
+                                x: [50, -50],
+                                y: [0, -2, 0, -2, 0],
+                                rotate: [8, 0, -8, 0, 8],
+                            }}
+                            transition={{
+                                x: {
+                                    duration: 3,
+                                    repeat: Infinity,
+                                    repeatType: "reverse",
+                                    ease: "linear",
+                                },
+                                y: {
+                                    duration: 0.4,
+                                    repeat: Infinity,
+                                    ease: "easeInOut",
+                                },
+                                rotate: {
+                                    duration: 0.4,
+                                    repeat: Infinity,
+                                    ease: "easeInOut",
+                                },
+                            }}
+                            className="inline-block -scale-x-100 text-3xl"
+                        >
+                            🐛
+                        </motion.div>
+                        <motion.div
+                            animate={{
+                                x: [-50, 50],
+                                y: [0, -2, 0, -2, 0],
+                                rotate: [-8, 0, 8, 0, -8],
+                            }}
+                            transition={{
+                                x: {
+                                    duration: 3,
+                                    repeat: Infinity,
+                                    repeatType: "reverse",
+                                    ease: "linear",
+                                },
+                                y: {
+                                    duration: 0.4,
+                                    repeat: Infinity,
+                                    ease: "easeInOut",
+                                },
+                                rotate: {
+                                    duration: 0.4,
+                                    repeat: Infinity,
+                                    ease: "easeInOut",
+                                },
+                            }}
+                            className="inline-block text-3xl"
+                        >
+                            🐛
+                        </motion.div>
+                    </div>
+
+                    <span>
+                        Nothing here yet... even the bugs are busy dancing instead. 😴
+                    </span>
                 </div>
             )}
         </section>
