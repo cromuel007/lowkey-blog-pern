@@ -118,7 +118,7 @@ export default function Home({ searchQuery }: PostPageProps) {
             <div className="max-w-[1000px] pt-0 pb-6 sm:pt-2 sm:pb-8">
                 {!searchQuery.trim() && (
                     <h2 className="text-3xl font-extrabold tracking-tight text-ink sm:text-4xl">
-                        Latest Post
+                        Latest Posts
                     </h2>
                 )}
             </div>
