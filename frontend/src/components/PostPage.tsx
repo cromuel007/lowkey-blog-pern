@@ -126,7 +126,7 @@ export default function PostPage() {
             setError("");
         } catch (error) {
             console.error("Failed to fetch post:", error);
-            setError("Post not found.");
+            setError("Post not found. 😵");
         }
     };
 
@@ -163,9 +163,17 @@ export default function PostPage() {
 
     if (error) {
         return (
-            <p className="py-20 text-center font-medium text-danger">
-                {error}
-            </p>
+            <div className="flex min-h-[300px] flex-col items-center justify-center pt-80 pb-100 text-center text-slate">
+                <p>{error}</p>
+
+                <Link
+                    to="/"
+                    className="pt-4 read-article-link inline-flex items-center gap-1 font-bold"
+                >
+                    <ArrowLeft className="mt-0.5 h-4 w-4" />
+                    Pretend this never happened
+                </Link>
+            </div>
         );
     }
 

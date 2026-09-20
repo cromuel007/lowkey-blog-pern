@@ -102,7 +102,9 @@ export default function Home({ searchQuery }: PostPageProps) {
                     <>
                         <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-ink sm:text-6xl">
                             {loading || error || posts.length > 0
-                                ? "Latest Posts"
+                                ? posts.length > 1
+                                    ? "Latest Posts"
+                                    : "Latest Post"
                                 : "Nothing here..."}
                         </h1>
 
@@ -118,7 +120,7 @@ export default function Home({ searchQuery }: PostPageProps) {
             <div className="max-w-[1000px] pt-0 pb-6 sm:pt-2 sm:pb-8">
                 {!searchQuery.trim() && (
                     <h2 className="text-3xl font-extrabold tracking-tight text-ink sm:text-4xl">
-                        Latest Posts
+                        {posts.length > 1 ? "Latest Posts" : "Latest Post"}
                     </h2>
                 )}
             </div>
