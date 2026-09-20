@@ -322,6 +322,9 @@ router.get("/", async (req, res) => {
   const allowedSorts = [
     "title",
     "category",
+    "shares",
+    "likes",
+    "comments",
     "published",
     "publishedAt",
   ] as const;
@@ -378,6 +381,15 @@ router.get("/", async (req, res) => {
       };
     }
     | {
+      shareCount: "asc" | "desc";
+    }
+    | {
+      likeCount: "asc" | "desc";
+    }
+    | {
+      commentCount: "asc" | "desc";
+    }
+    | {
       published: "asc" | "desc";
     }
     | {
@@ -413,6 +425,39 @@ router.get("/", async (req, res) => {
           category: {
             name: sortOrder,
           },
+        },
+        {
+          id: "desc",
+        },
+      ];
+      break;
+
+    case "shares":
+      orderBy = [
+        {
+          shareCount: sortOrder,
+        },
+        {
+          id: "desc",
+        },
+      ];
+      break;
+
+    case "likes":
+      orderBy = [
+        {
+          likeCount: sortOrder,
+        },
+        {
+          id: "desc",
+        },
+      ];
+      break;
+
+    case "comments":
+      orderBy = [
+        {
+          commentCount: sortOrder,
         },
         {
           id: "desc",
