@@ -359,6 +359,30 @@ router.get("/", async (req, res) => {
             },
           },
           {
+            excerpt: {
+              contains: search,
+              mode: "insensitive" as const,
+            },
+          },
+          {
+            content: {
+              contains: search,
+              mode: "insensitive" as const,
+            },
+          },
+          {
+            seoTitle: {
+              contains: search,
+              mode: "insensitive" as const,
+            },
+          },
+          {
+            seoDescription: {
+              contains: search,
+              mode: "insensitive" as const,
+            },
+          },
+          {
             category: {
               name: {
                 contains: search,
