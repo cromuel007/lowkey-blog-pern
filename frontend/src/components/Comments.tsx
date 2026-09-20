@@ -428,6 +428,12 @@ export default function Comments({
     useEffect(() => {
         let cancelled = false;
 
+        /*
+         * Clear pending comments/replies from the previous post
+         * immediately when the slug changes.
+         */
+        setComments([]);
+
         const fetchComments = async () => {
             try {
                 const response =
