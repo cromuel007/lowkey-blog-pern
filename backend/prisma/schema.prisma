@@ -67,13 +67,23 @@ model PostComment {
   @@index([ip_address])
 }
 
-model PostCommentLike {
-  id          Int      @id @default(autoincrement())
-  commentId   Int
-  ip_address  String?  @db.VarChar(45)
-  createdAt   DateTime @default(now())
+enum CommentReaction {
+  LIKE
+  CELEBRATE
+  SUPPORT
+  LOVE
+  INSIGHTFUL
+  FUNNY
+}
 
-  comment     PostComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+model PostCommentLike {
+  id          Int              @id @default(autoincrement())
+  commentId   Int
+  ip_address  String?          @db.VarChar(45)
+  reaction    CommentReaction  @default(LIKE)
+  createdAt   DateTime         @default(now())
+
+  comment     PostComment      @relation(fields: [commentId], references: [id], onDelete: Cascade)
 
   @@unique([commentId, ip_address])
   @@index([commentId])

@@ -609,58 +609,108 @@ router.get("/:slug/comments", async (req, res) => {
             createdAt: "asc",
           },
           include: {
-            likes: ipAddress
-              ? {
-                where: {
-                  ip_address: ipAddress,
-                },
-                select: {
-                  id: true,
-                },
-              }
-              : false,
+            likes: {
+              select: {
+                ip_address: true,
+                reaction: true,
+              },
+            },
           },
         },
-        likes: ipAddress
-          ? {
-            where: {
-              ip_address: ipAddress,
-            },
-            select: {
-              id: true,
-            },
-          }
-          : false,
+        likes: {
+          select: {
+            ip_address: true,
+            reaction: true,
+          },
+        },
       },
     });
 
     const formattedComments = comments.map(
-      (comment: typeof comments[number]) => ({
-        id: comment.id,
-        author: comment.author,
-        content: comment.content,
-        countryCode: getCountryCodeFromIp(
-          comment.ip_address
-        ),
-        likes: comment.likeCount,
-        liked: Array.isArray(comment.likes)
-          ? comment.likes.length > 0
-          : false,
-        replies: comment.replies.map(
-          (reply: typeof comment.replies[number]) => ({
-            id: reply.id,
-            author: reply.author,
-            content: reply.content,
-            countryCode: getCountryCodeFromIp(
-              reply.ip_address
-            ),
-            likes: reply.likeCount,
-            liked: Array.isArray(reply.likes)
-              ? reply.likes.length > 0
-              : false,
-          })
-        ),
-      })
+      (comment: typeof comments[number]) => {
+        const reactionCounts = {
+          LIKE: 0,
+          CELEBRATE: 0,
+          SUPPORT: 0,
+          LOVE: 0,
+          INSIGHTFUL: 0,
+          FUNNY: 0,
+        };
+
+        let userReaction:
+          | "LIKE"
+          | "CELEBRATE"
+          | "SUPPORT"
+          | "LOVE"
+          | "INSIGHTFUL"
+          | "FUNNY"
+          | null = null;
+
+        for (const like of comment.likes) {
+          reactionCounts[like.reaction]++;
+
+          if (
+            ipAddress &&
+            like.ip_address === ipAddress
+          ) {
+            userReaction = like.reaction;
+          }
+        }
+
+        return {
+          id: comment.id,
+          author: comment.author,
+          content: comment.content,
+          countryCode: getCountryCodeFromIp(
+            comment.ip_address
+          ),
+          reactionCounts,
+          userReaction,
+          replies: comment.replies.map(
+            (reply: typeof comment.replies[number]) => {
+              const replyReactionCounts = {
+                LIKE: 0,
+                CELEBRATE: 0,
+                SUPPORT: 0,
+                LOVE: 0,
+                INSIGHTFUL: 0,
+                FUNNY: 0,
+              };
+
+              let replyUserReaction:
+                | "LIKE"
+                | "CELEBRATE"
+                | "SUPPORT"
+                | "LOVE"
+                | "INSIGHTFUL"
+                | "FUNNY"
+                | null = null;
+
+              for (const like of reply.likes) {
+                replyReactionCounts[like.reaction]++;
+
+                if (
+                  ipAddress &&
+                  like.ip_address === ipAddress
+                ) {
+                  replyUserReaction = like.reaction;
+                }
+              }
+
+              return {
+                id: reply.id,
+                author: reply.author,
+                content: reply.content,
+                countryCode: getCountryCodeFromIp(
+                  reply.ip_address
+                ),
+                reactionCounts: replyReactionCounts,
+                userReaction: replyUserReaction,
+              };
+            }
+          ),
+        };
+      }
     );
 
     const commentCount = await prisma.postComment.count({
@@ -1121,6 +1171,23 @@ router.post("/:id/comments/:commentId/like", async (req, res) => {
     });
   }
 
+  const validReactions = [
+    "LIKE",
+    "CELEBRATE",
+    "SUPPORT",
+    "LOVE",
+    "INSIGHTFUL",
+    "FUNNY",
+  ] as const;
+
+  const reaction = req.body?.reaction ?? "LIKE";
+
+  if (!validReactions.includes(reaction)) {
+    return res.status(400).json({
+      message: "Invalid reaction.",
+    });
+  }
+
   const forwardedFor = req.headers["x-forwarded-for"];
 
   const ipAddress =
@@ -1139,20 +1206,19 @@ router.post("/:id/comments/:commentId/like", async (req, res) => {
   }
 
   try {
-    const comment =
-      await prisma.postComment.findFirst({
-        where: {
-          id: commentId,
-          postId,
-          post: {
-            published: true,
-          },
+    const comment = await prisma.postComment.findFirst({
+      where: {
+        id: commentId,
+        postId,
+        is_approved: true,
+        post: {
+          published: true,
         },
-        select: {
-          id: true,
-          likeCount: true,
-        },
-      });
+      },
+      select: {
+        id: true,
+      },
+    });
 
     if (!comment) {
       return res.status(404).json({
@@ -1160,117 +1226,125 @@ router.post("/:id/comments/:commentId/like", async (req, res) => {
       });
     }
 
-    const existingLike =
-      await prisma.postCommentLike.findFirst({
+    const existingReaction =
+      await prisma.postCommentLike.findUnique({
         where: {
-          commentId,
-          ip_address: ipAddress,
-        },
-        select: {
-          id: true,
-        },
-      });
-
-    if (existingLike) {
-      const [, updatedComment, updatedPost] =
-        await prisma.$transaction([
-          prisma.postCommentLike.delete({
-            where: {
-              id: existingLike.id,
-            },
-          }),
-
-          prisma.postComment.update({
-            where: {
-              id: commentId,
-            },
-            data: {
-              likeCount: {
-                decrement: 1,
-              },
-            },
-            select: {
-              likeCount: true,
-            },
-          }),
-
-          prisma.post.update({
-            where: {
-              id: postId,
-            },
-            data: {
-              likeCount: {
-                decrement: 1,
-              },
-            },
-            select: {
-              likeCount: true,
-            },
-          }),
-        ]);
-
-      return res.status(200).json({
-        liked: false,
-        likeCount: updatedComment.likeCount,
-        postLikeCount: updatedPost.likeCount,
-      });
-    }
-
-    const [, updatedComment, updatedPost] =
-      await prisma.$transaction([
-        prisma.postCommentLike.create({
-          data: {
+          commentId_ip_address: {
             commentId,
             ip_address: ipAddress,
           },
-        }),
+        },
+      });
 
-        prisma.postComment.update({
+    if (existingReaction) {
+      if (existingReaction.reaction === reaction) {
+        // Clicking the same reaction again removes it.
+        await prisma.postCommentLike.delete({
           where: {
-            id: commentId,
+            id: existingReaction.id,
           },
-          data: {
-            likeCount: {
-              increment: 1,
-            },
-          },
-          select: {
-            likeCount: true,
-          },
-        }),
+        });
 
-        prisma.post.update({
+        // Decrease the post like count.
+        await prisma.post.update({
           where: {
             id: postId,
           },
           data: {
             likeCount: {
-              increment: 1,
+              decrement: 1,
             },
           },
-          select: {
-            likeCount: true,
+        });
+      } else {
+        // Change the existing reaction.
+        // The total reaction count stays the same.
+        await prisma.postCommentLike.update({
+          where: {
+            id: existingReaction.id,
           },
-        }),
-      ]);
+          data: {
+            reaction,
+          },
+        });
+      }
+    } else {
+      // Create a new reaction.
+      await prisma.postCommentLike.create({
+        data: {
+          commentId,
+          ip_address: ipAddress,
+          reaction,
+        },
+      });
+
+      // Increase the post like count.
+      await prisma.post.update({
+        where: {
+          id: postId,
+        },
+        data: {
+          likeCount: {
+            increment: 1,
+          },
+        },
+      });
+    }
+
+    const reactionGroups =
+      await prisma.postCommentLike.groupBy({
+        by: ["reaction"],
+        where: {
+          commentId,
+        },
+        _count: {
+          reaction: true,
+        },
+      });
+
+    const reactionCounts = {
+      LIKE: 0,
+      CELEBRATE: 0,
+      SUPPORT: 0,
+      LOVE: 0,
+      INSIGHTFUL: 0,
+      FUNNY: 0,
+    };
+
+    for (const group of reactionGroups) {
+      reactionCounts[group.reaction] =
+        group._count.reaction;
+    }
+
+    const currentReaction =
+      await prisma.postCommentLike.findUnique({
+        where: {
+          commentId_ip_address: {
+            commentId,
+            ip_address: ipAddress,
+          },
+        },
+        select: {
+          reaction: true,
+        },
+      });
 
     return res.status(200).json({
-      liked: true,
-      likeCount: updatedComment.likeCount,
-      postLikeCount: updatedPost.likeCount,
+      reactionCounts,
+      userReaction:
+        currentReaction?.reaction ?? null,
     });
   } catch (error) {
     console.error(
-      "Failed to toggle comment like:",
+      "Failed to update comment reaction:",
       error
     );
 
     return res.status(500).json({
-      message: "Could not update comment like.",
+      message: "Could not update comment reaction.",
     });
   }
-}
-);
+});
 
 router.get("/:slug", async (req, res) => {
   const value = req.params.slug;
