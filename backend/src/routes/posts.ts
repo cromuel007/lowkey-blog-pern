@@ -6,12 +6,22 @@ import {
   DeleteObjectCommand,
   PutObjectCommand,
 } from "@aws-sdk/client-s3";
-import { CommentReaction } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/auth.js";
 import { s3, STORAGE_BUCKET } from "../lib/s3.js";
 import geoip from "geoip-lite";
 import { Resend } from "resend";
+
+const validReactions = [
+  "LIKE",
+  "CELEBRATE",
+  "SUPPORT",
+  "LOVE",
+  "INSIGHTFUL",
+  "FUNNY",
+] as const;
+
+type Reaction = (typeof validReactions)[number];
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -627,10 +637,21 @@ router.get("/:slug/comments", async (req, res) => {
       },
     });
 
+    const validReactions = [
+      "LIKE",
+      "CELEBRATE",
+      "SUPPORT",
+      "LOVE",
+      "INSIGHTFUL",
+      "FUNNY",
+    ] as const;
+
+    type Reaction = (typeof validReactions)[number];
+
     const formattedComments = comments.map(
       (comment: typeof comments[number]) => {
         const reactionCounts: Record<
-          CommentReaction,
+          Reaction,
           number
         > = {
           LIKE: 0,
@@ -641,11 +662,11 @@ router.get("/:slug/comments", async (req, res) => {
           FUNNY: 0,
         };
 
-        let userReaction: CommentReaction | null = null;
+        let userReaction: Reaction | null = null;
 
         for (const like of comment.likes) {
           const reaction =
-            like.reaction as CommentReaction;
+            like.reaction as Reaction;
 
           reactionCounts[reaction]++;
 
@@ -669,7 +690,7 @@ router.get("/:slug/comments", async (req, res) => {
           replies: comment.replies.map(
             (reply: typeof comment.replies[number]) => {
               const replyReactionCounts: Record<
-                CommentReaction,
+                Reaction,
                 number
               > = {
                 LIKE: 0,
@@ -681,12 +702,12 @@ router.get("/:slug/comments", async (req, res) => {
               };
 
               let replyUserReaction:
-                | CommentReaction
+                | Reaction
                 | null = null;
 
               for (const like of reply.likes) {
                 const reaction =
-                  like.reaction as CommentReaction;
+                  like.reaction as Reaction;
 
                 replyReactionCounts[reaction]++;
 
@@ -1174,22 +1195,13 @@ router.post("/:id/comments/:commentId/like", async (req, res) => {
     });
   }
 
-  const validReactions: readonly CommentReaction[] = [
-    CommentReaction.LIKE,
-    CommentReaction.CELEBRATE,
-    CommentReaction.SUPPORT,
-    CommentReaction.LOVE,
-    CommentReaction.INSIGHTFUL,
-    CommentReaction.FUNNY,
-  ];
-
   const reaction =
-    req.body?.reaction as CommentReaction | undefined;
+    req.body?.reaction as Reaction | undefined;
 
-  const selectedReaction: CommentReaction =
+  const selectedReaction: Reaction =
     reaction && validReactions.includes(reaction)
       ? reaction
-      : CommentReaction.LIKE;
+      : "LIKE";
 
   const forwardedFor = req.headers["x-forwarded-for"];
 
@@ -1248,7 +1260,7 @@ router.post("/:id/comments/:commentId/like", async (req, res) => {
           },
         });
 
-        // Decrease the post like count.
+        // Decrease the post reaction count.
         await prisma.post.update({
           where: {
             id: postId,
@@ -1281,7 +1293,7 @@ router.post("/:id/comments/:commentId/like", async (req, res) => {
         },
       });
 
-      // Increase the post like count.
+      // Increase the post reaction count.
       await prisma.post.update({
         where: {
           id: postId,
@@ -1305,10 +1317,7 @@ router.post("/:id/comments/:commentId/like", async (req, res) => {
         },
       });
 
-    const reactionCounts: Record<
-      CommentReaction,
-      number
-    > = {
+    const reactionCounts: Record<Reaction, number> = {
       LIKE: 0,
       CELEBRATE: 0,
       SUPPORT: 0,
@@ -1319,7 +1328,7 @@ router.post("/:id/comments/:commentId/like", async (req, res) => {
 
     for (const group of reactionGroups) {
       const groupReaction =
-        group.reaction as CommentReaction;
+        group.reaction as Reaction;
 
       reactionCounts[groupReaction] =
         group._count.reaction;
