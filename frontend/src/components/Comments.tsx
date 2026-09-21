@@ -1,8 +1,4 @@
-import { useEffect, useState } from "react";
-import {
-    Heart,
-    ThumbsUp,
-} from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import * as Flags from "country-flag-icons/react/3x2";
 import { api } from "../api";
 import { motion } from "motion/react";
@@ -10,15 +6,91 @@ import { useLoadingDots } from "../hooks/useLoadingDots";
 
 const REFRESH_INTERVAL = 10000;
 
+type ReactionType =
+    | "LIKE"
+    | "CELEBRATE"
+    | "SUPPORT"
+    | "LOVE"
+    | "INSIGHTFUL"
+    | "FUNNY";
+
+type ReactionCounts = {
+    LIKE: number;
+    CELEBRATE: number;
+    SUPPORT: number;
+    LOVE: number;
+    INSIGHTFUL: number;
+    FUNNY: number;
+};
+
 type Comment = {
     id: number;
     author: string;
     content: string;
     countryCode: string | null;
-    likes: number;
-    liked: boolean;
+    reactionCounts: ReactionCounts;
+    userReaction: ReactionType | null;
     replies: Comment[];
 };
+
+const EMPTY_REACTION_COUNTS: ReactionCounts = {
+    LIKE: 0,
+    CELEBRATE: 0,
+    SUPPORT: 0,
+    LOVE: 0,
+    INSIGHTFUL: 0,
+    FUNNY: 0,
+};
+
+const REACTIONS = [
+    {
+        type: "LIKE" as const,
+        emoji: "👍",
+        label: "Like",
+    },
+    {
+        type: "CELEBRATE" as const,
+        emoji: "🎉",
+        label: "Celebrate",
+    },
+    {
+        type: "SUPPORT" as const,
+        emoji: "💪",
+        label: "Support",
+    },
+    {
+        type: "LOVE" as const,
+        emoji: "❤️",
+        label: "Love",
+    },
+    {
+        type: "INSIGHTFUL" as const,
+        emoji: "💡",
+        label: "Insightful",
+    },
+    {
+        type: "FUNNY" as const,
+        emoji: "😂",
+        label: "Funny",
+    },
+];
+
+function getReactionMeta(
+    reaction: ReactionType | null
+) {
+    return (
+        REACTIONS.find(
+            (item) => item.type === reaction
+        ) ?? REACTIONS[0]
+    );
+}
+
+function getReactionSummary(comment: Comment) {
+    return REACTIONS.filter(
+        (reaction) =>
+            comment.reactionCounts[reaction.type] > 0
+    );
+}
 
 function createPendingComment(
     author: string,
@@ -30,8 +102,10 @@ function createPendingComment(
         author,
         content,
         countryCode: null,
-        likes: 0,
-        liked: false,
+        reactionCounts: {
+            ...EMPTY_REACTION_COUNTS,
+        },
+        userReaction: null,
         replies: [],
     };
 }
@@ -53,7 +127,10 @@ const PLANETS = [
     { emoji: "🏳️‍🌈", name: "LGBTQ Community" },
     { emoji: "🪐", name: "Saturn" },
     { emoji: "🌔", name: "Moon" },
-    { emoji: "💔", name: "a broken-hearted relationship" },
+    {
+        emoji: "💔",
+        name: "a broken-hearted relationship",
+    },
 ];
 
 const ANIMAL_NAMES = [
@@ -206,28 +283,18 @@ const EMAIL_REGEX =
 function hasDisallowedUrlOrEmail(
     content: string
 ): boolean {
-    /*
-     * Check email addresses first.
-     */
     EMAIL_REGEX.lastIndex = 0;
 
     if (EMAIL_REGEX.test(content)) {
         return true;
     }
 
-    /*
-     * Check URLs.
-     */
     URL_REGEX.lastIndex = 0;
 
     const urls =
         content.match(URL_REGEX) || [];
 
     return urls.some((rawUrl) => {
-        /*
-         * Remove punctuation that may have
-         * been placed immediately after a URL.
-         */
         const cleanUrl =
             rawUrl.replace(/[),.!?]+$/, "");
 
@@ -306,10 +373,6 @@ function renderCommentContent(
             isGiphyMedia = false;
         }
 
-        /*
-         * Giphy media URLs are rendered
-         * as actual images/GIFs.
-         */
         if (isGiphyMedia) {
             return (
                 <span
@@ -341,10 +404,6 @@ function renderCommentContent(
             );
         }
 
-        /*
-         * A normal Giphy page URL is allowed,
-         * but it is not treated as an image.
-         */
         return (
             <span key={index}>
                 <a
@@ -389,8 +448,18 @@ export default function Comments({
     const [showReplies, setShowReplies] =
         useState<number[]>([]);
 
-    const [showLikeBurst, setShowLikeBurst] =
+    const [reactionPicker, setReactionPicker] =
         useState<number | null>(null);
+
+    const reactionPickerRef =
+        useRef<HTMLDivElement | null>(null);
+
+    const [showReactionBurst, setShowReactionBurst] =
+        useState<{
+            id: number;
+            type: "comment" | "reply";
+            reaction: ReactionType;
+        } | null>(null);
 
     const [commentCount, setCommentCount] =
         useState(initialCount);
@@ -418,21 +487,48 @@ export default function Comments({
             message: string;
         } | null>(null);
 
-    const [showCommentForm, setShowCommentForm] = useState(false);
+    const [showCommentForm, setShowCommentForm] =
+        useState(false);
+
     const loadingDots = useLoadingDots();
 
-    /*
-     * Load comments initially and refresh
-     * every 10 seconds.
-     */
+    useEffect(() => {
+        if (reactionPicker === null) {
+            return;
+        }
+
+        const handleClickOutside = (
+            event: MouseEvent
+        ) => {
+            if (
+                reactionPickerRef.current &&
+                !reactionPickerRef.current.contains(
+                    event.target as Node
+                )
+            ) {
+                setReactionPicker(null);
+            }
+        };
+
+        document.addEventListener(
+            "mousedown",
+            handleClickOutside
+        );
+
+        return () => {
+            document.removeEventListener(
+                "mousedown",
+                handleClickOutside
+            );
+        };
+    }, [reactionPicker]);
+
     useEffect(() => {
         let cancelled = false;
 
-        /*
-         * Clear pending comments/replies from the previous post
-         * immediately when the slug changes.
-         */
         setComments([]);
+        setReactionPicker(null);
+        setShowReactionBurst(null);
 
         const fetchComments = async () => {
             try {
@@ -447,60 +543,56 @@ export default function Comments({
                     response.data.comments || [];
 
                 setComments((previous) => {
-                    /*
-                     * Keep locally submitted comments and replies
-                     * visible until their approved versions appear
-                     * in the API response.
-                     *
-                     * Temporary entries use negative IDs.
-                     */
                     const pendingComments =
                         previous.filter(
-                            (comment) => comment.id < 0
+                            (comment) =>
+                                comment.id < 0
                         );
 
                     const mergedComments =
-                        fetchedComments.map((comment) => {
-                            const previousComment =
-                                previous.find(
-                                    (item) =>
-                                        item.id === comment.id
-                                );
+                        fetchedComments.map(
+                            (comment) => {
+                                const previousComment =
+                                    previous.find(
+                                        (item) =>
+                                            item.id ===
+                                            comment.id
+                                    );
 
-                            if (!previousComment) {
-                                return comment;
+                                if (
+                                    !previousComment
+                                ) {
+                                    return comment;
+                                }
+
+                                const pendingReplies =
+                                    previousComment.replies.filter(
+                                        (reply) =>
+                                            reply.id < 0
+                                    );
+
+                                const stillPendingReplies =
+                                    pendingReplies.filter(
+                                        (pendingReply) =>
+                                            !comment.replies.some(
+                                                (reply) =>
+                                                    reply.author ===
+                                                    pendingReply.author &&
+                                                    reply.content ===
+                                                    pendingReply.content
+                                            )
+                                    );
+
+                                return {
+                                    ...comment,
+                                    replies: [
+                                        ...comment.replies,
+                                        ...stillPendingReplies,
+                                    ],
+                                };
                             }
+                        );
 
-                            const pendingReplies =
-                                previousComment.replies.filter(
-                                    (reply) => reply.id < 0
-                                );
-
-                            const stillPendingReplies =
-                                pendingReplies.filter(
-                                    (pendingReply) =>
-                                        !comment.replies.some(
-                                            (reply) =>
-                                                reply.author ===
-                                                pendingReply.author &&
-                                                reply.content ===
-                                                pendingReply.content
-                                        )
-                                );
-
-                            return {
-                                ...comment,
-                                replies: [
-                                    ...comment.replies,
-                                    ...stillPendingReplies,
-                                ],
-                            };
-                        });
-
-                    /*
-                     * Keep a pending top-level comment until the
-                     * approved version is returned by the API.
-                     */
                     const stillPendingComments =
                         pendingComments.filter(
                             (pendingComment) =>
@@ -530,7 +622,9 @@ export default function Comments({
                     error
                 );
 
-                setError("Could not load comments.");
+                setError(
+                    "Could not load comments."
+                );
             } finally {
                 if (!cancelled) {
                     setIsLoading(false);
@@ -562,13 +656,13 @@ export default function Comments({
                 Math.floor(Math.random() * 10)
             )}`;
 
-        if (!content || isSubmittingComment) {
+        if (
+            !content ||
+            isSubmittingComment
+        ) {
             return;
         }
 
-        /*
-         * Validate before making the API request.
-         */
         setError("");
         setReplyStatus(null);
 
@@ -576,6 +670,7 @@ export default function Comments({
             setError(
                 "Email addresses and external links are not allowed. Only Giphy links are allowed."
             );
+
             return;
         }
 
@@ -590,11 +685,6 @@ export default function Comments({
                 }
             );
 
-            /*
-             * Show the comment immediately as a normal comment.
-             * The negative ID marks it as temporary so the next
-             * refresh can replace it with the real database record.
-             */
             const pendingComment =
                 createPendingComment(
                     author,
@@ -642,9 +732,6 @@ export default function Comments({
             return;
         }
 
-        /*
-         * Validate before making the API request.
-         */
         setError("");
         setReplyStatus(null);
 
@@ -670,11 +757,6 @@ export default function Comments({
                 }
             );
 
-            /*
-             * Show the reply immediately as a normal reply.
-             * The negative ID marks it as temporary so the next
-             * refresh can replace it with the real database record.
-             */
             const pendingReply =
                 createPendingComment(
                     author,
@@ -696,13 +778,13 @@ export default function Comments({
                 )
             );
 
-            /*
-             * Make sure the replies are visible immediately.
-             */
             setShowReplies((previous) =>
                 previous.includes(commentId)
                     ? previous
-                    : [...previous, commentId]
+                    : [
+                        ...previous,
+                        commentId,
+                    ]
             );
 
             setReplyAuthor("");
@@ -726,8 +808,9 @@ export default function Comments({
         }
     };
 
-    const toggleCommentLike = async (
+    const toggleCommentReaction = async (
         commentId: number,
+        reaction: ReactionType,
         replyId?: number
     ) => {
         const targetComment =
@@ -738,28 +821,201 @@ export default function Comments({
 
         if (!targetComment) return;
 
-        /*
-         * Reply like
-         */
-        if (replyId !== undefined) {
-            const targetReply =
-                targetComment.replies.find(
+        const target =
+            replyId !== undefined
+                ? targetComment.replies.find(
                     (reply) =>
                         reply.id === replyId
+                )
+                : targetComment;
+
+        if (!target) return;
+
+        const previousReaction =
+            target.userReaction;
+
+        const previousCounts = {
+            ...target.reactionCounts,
+        };
+
+        const nextReaction =
+            previousReaction === reaction
+                ? null
+                : reaction;
+
+        const nextCounts = {
+            ...target.reactionCounts,
+        };
+
+        if (previousReaction) {
+            nextCounts[previousReaction] =
+                Math.max(
+                    0,
+                    nextCounts[previousReaction] -
+                    1
+                );
+        }
+
+        if (nextReaction) {
+            nextCounts[nextReaction] += 1;
+
+            setShowReactionBurst({
+                id:
+                    replyId !== undefined
+                        ? replyId
+                        : commentId,
+                type:
+                    replyId !== undefined
+                        ? "reply"
+                        : "comment",
+                reaction,
+            });
+        } else {
+            setShowReactionBurst(null);
+        }
+
+        setComments((previous) =>
+            previous.map((comment) => {
+                if (
+                    replyId === undefined &&
+                    comment.id === commentId
+                ) {
+                    return {
+                        ...comment,
+                        reactionCounts:
+                            nextCounts,
+                        userReaction:
+                            nextReaction,
+                    };
+                }
+
+                if (
+                    replyId !== undefined &&
+                    comment.id === commentId
+                ) {
+                    return {
+                        ...comment,
+                        replies:
+                            comment.replies.map(
+                                (reply) =>
+                                    reply.id ===
+                                        replyId
+                                        ? {
+                                            ...reply,
+                                            reactionCounts:
+                                                nextCounts,
+                                            userReaction:
+                                                nextReaction,
+                                        }
+                                        : reply
+                            ),
+                    };
+                }
+
+                return comment;
+            })
+        );
+
+        setReactionPicker(null);
+
+        try {
+            const response =
+                await api.post(
+                    `/api/posts/${postId}/comments/${replyId ?? commentId
+                    }/like`,
+                    {
+                        reaction,
+                    }
                 );
 
-            if (!targetReply) return;
+            if (
+                response.data?.reactionCounts
+            ) {
+                const serverReaction =
+                    response.data
+                        .userReaction ??
+                    response.data.reaction ??
+                    null;
 
-            const previousLiked =
-                targetReply.liked;
+                setComments((previous) =>
+                    previous.map((comment) => {
+                        if (
+                            replyId ===
+                            undefined &&
+                            comment.id ===
+                            commentId
+                        ) {
+                            return {
+                                ...comment,
+                                reactionCounts:
+                                    response.data
+                                        .reactionCounts,
+                                userReaction:
+                                    serverReaction,
+                            };
+                        }
 
-            const previousLikes =
-                targetReply.likes;
+                        if (
+                            replyId !==
+                            undefined &&
+                            comment.id ===
+                            commentId
+                        ) {
+                            return {
+                                ...comment,
+                                replies:
+                                    comment.replies.map(
+                                        (reply) =>
+                                            reply.id ===
+                                                replyId
+                                                ? {
+                                                    ...reply,
+                                                    reactionCounts:
+                                                        response
+                                                            .data
+                                                            .reactionCounts,
+                                                    userReaction:
+                                                        serverReaction,
+                                                }
+                                                : reply
+                                    ),
+                            };
+                        }
+
+                        return comment;
+                    })
+                );
+            }
+        } catch (error) {
+            console.error(
+                "Failed to update reaction:",
+                error
+            );
 
             setComments((previous) =>
-                previous.map((comment) =>
-                    comment.id === commentId
-                        ? {
+                previous.map((comment) => {
+                    if (
+                        replyId ===
+                        undefined &&
+                        comment.id ===
+                        commentId
+                    ) {
+                        return {
+                            ...comment,
+                            reactionCounts:
+                                previousCounts,
+                            userReaction:
+                                previousReaction,
+                        };
+                    }
+
+                    if (
+                        replyId !==
+                        undefined &&
+                        comment.id ===
+                        commentId
+                    ) {
+                        return {
                             ...comment,
                             replies:
                                 comment.replies.map(
@@ -768,164 +1024,21 @@ export default function Comments({
                                             replyId
                                             ? {
                                                 ...reply,
-                                                liked:
-                                                    !reply.liked,
-                                                likes:
-                                                    reply.liked
-                                                        ? Math.max(
-                                                            0,
-                                                            reply.likes -
-                                                            1
-                                                        )
-                                                        : reply.likes +
-                                                        1,
+                                                reactionCounts:
+                                                    previousCounts,
+                                                userReaction:
+                                                    previousReaction,
                                             }
                                             : reply
                                 ),
-                        }
-                        : comment
-                )
-            );
-
-            try {
-                const response =
-                    await api.post(
-                        `/api/posts/${postId}/comments/${replyId}/like`
-                    );
-
-                setComments((previous) =>
-                    previous.map((comment) =>
-                        comment.id ===
-                            commentId
-                            ? {
-                                ...comment,
-                                replies:
-                                    comment.replies.map(
-                                        (reply) =>
-                                            reply.id ===
-                                                replyId
-                                                ? {
-                                                    ...reply,
-                                                    liked:
-                                                        response
-                                                            .data
-                                                            .liked,
-                                                    likes:
-                                                        response
-                                                            .data
-                                                            .likeCount,
-                                                }
-                                                : reply
-                                    ),
-                            }
-                            : comment
-                    )
-                );
-            } catch (error) {
-                console.error(
-                    "Failed to update reply like:",
-                    error
-                );
-
-                setComments((previous) =>
-                    previous.map((comment) =>
-                        comment.id ===
-                            commentId
-                            ? {
-                                ...comment,
-                                replies:
-                                    comment.replies.map(
-                                        (reply) =>
-                                            reply.id ===
-                                                replyId
-                                                ? {
-                                                    ...reply,
-                                                    liked:
-                                                        previousLiked,
-                                                    likes:
-                                                        previousLikes,
-                                                }
-                                                : reply
-                                    ),
-                            }
-                            : comment
-                    )
-                );
-            }
-
-            return;
-        }
-
-        /*
-         * Comment like
-         */
-        const previousLiked =
-            targetComment.liked;
-
-        const previousLikes =
-            targetComment.likes;
-
-        setComments((previous) =>
-            previous.map((comment) =>
-                comment.id === commentId
-                    ? {
-                        ...comment,
-                        liked:
-                            !comment.liked,
-                        likes:
-                            comment.liked
-                                ? Math.max(
-                                    0,
-                                    comment.likes -
-                                    1
-                                )
-                                : comment.likes +
-                                1,
+                        };
                     }
-                    : comment
-            )
-        );
 
-        try {
-            const response =
-                await api.post(
-                    `/api/posts/${postId}/comments/${commentId}/like`
-                );
-
-            setComments((previous) =>
-                previous.map((comment) =>
-                    comment.id === commentId
-                        ? {
-                            ...comment,
-                            liked:
-                                response.data
-                                    .liked,
-                            likes:
-                                response.data
-                                    .likeCount,
-                        }
-                        : comment
-                )
-            );
-        } catch (error) {
-            console.error(
-                "Failed to update comment like:",
-                error
+                    return comment;
+                })
             );
 
-            setComments((previous) =>
-                previous.map((comment) =>
-                    comment.id === commentId
-                        ? {
-                            ...comment,
-                            liked:
-                                previousLiked,
-                            likes:
-                                previousLikes,
-                        }
-                        : comment
-                )
-            );
+            setShowReactionBurst(null);
         }
     };
 
@@ -945,9 +1058,6 @@ export default function Comments({
         );
     };
 
-    /*
-     * Auto-dismiss error/status messages after 5 seconds.
-     */
     useEffect(() => {
         if (!error && !replyStatus) {
             return;
@@ -967,15 +1077,21 @@ export default function Comments({
                 <div className="mb-5 flex items-center justify-between">
                     <h2 className="text-xl font-bold text-ink">
                         Comments
-                        {(commentCount +
+                        {(
+                            commentCount +
                             comments.filter(
-                                (comment) => comment.id < 0
-                            ).length) > 0 && (
+                                (comment) =>
+                                    comment.id < 0
+                            ).length
+                        ) > 0 && (
                                 <span className="ml-2 text-sm font-medium text-muted">
-                                    ({commentCount +
+                                    {`(${commentCount +
                                         comments.filter(
-                                            (comment) => comment.id < 0
-                                        ).length})
+                                            (comment) =>
+                                                comment.id <
+                                                0
+                                        ).length
+                                        })`}
                                 </span>
                             )}
                     </h2>
@@ -983,7 +1099,11 @@ export default function Comments({
                     {!showCommentForm && (
                         <button
                             type="button"
-                            onClick={() => setShowCommentForm((prev) => !prev)}
+                            onClick={() =>
+                                setShowCommentForm(
+                                    (prev) => !prev
+                                )
+                            }
                             className="rounded-full border border-line bg-surface-alt px-4 py-2 text-sm font-semibold text-ink transition-colors hover:border-[#d4a017] hover:text-[#d4a017]"
                         >
                             Post a Comment
@@ -991,81 +1111,94 @@ export default function Comments({
                     )}
                 </div>
 
-                {/* New comment */}
                 {showCommentForm && (
-                    <>
-                        <div className="flex gap-3">
-                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-line bg-surface-alt text-sm font-bold text-white">
-                                <CountryFlag
-                                    countryCode={null}
-                                    entryId={0}
-                                />
-                            </div>
+                    <div className="flex gap-3">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-line bg-surface-alt text-sm font-bold text-white">
+                            <CountryFlag
+                                countryCode={null}
+                                entryId={0}
+                            />
+                        </div>
 
-                            <div className="flex-1">
+                        <div className="flex-1">
+                            <input
+                                type="text"
+                                value={
+                                    commentAuthor
+                                }
+                                onChange={(event) =>
+                                    setCommentAuthor(
+                                        event.target.value
+                                    )
+                                }
+                                placeholder="Your name"
+                                disabled={
+                                    isSubmittingComment
+                                }
+                                className="mb-2 w-full rounded-xl border border-line bg-surface-alt px-4 py-2.5 text-sm text-ink outline-none transition-colors focus:border-[#d4a017] disabled:opacity-60"
+                            />
 
+                            <textarea
+                                value={
+                                    commentText
+                                }
+                                onChange={(event) =>
+                                    setCommentText(
+                                        event.target.value
+                                    )
+                                }
+                                placeholder="Add a comment..."
+                                rows={3}
+                                disabled={
+                                    isSubmittingComment
+                                }
+                                className="w-full resize-y rounded-xl border border-line bg-surface-alt px-4 py-3 text-sm text-ink outline-none transition-colors focus:border-[#d4a017] disabled:opacity-60"
+                            />
 
-                                <input
-                                    type="text"
-                                    value={commentAuthor}
-                                    onChange={(event) =>
-                                        setCommentAuthor(
-                                            event.target.value
+                            <div className="mt-2 flex justify-end gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        setShowCommentForm(
+                                            (prev) =>
+                                                !prev
                                         )
                                     }
-                                    placeholder="Your name"
-                                    disabled={isSubmittingComment}
-                                    className="mb-2 w-full rounded-xl border border-line bg-surface-alt px-4 py-2.5 text-sm text-ink outline-none transition-colors focus:border-[#d4a017] disabled:opacity-60"
-                                />
+                                    className="rounded-full px-4 py-2 text-sm font-bold text-muted hover:text-ink disabled:opacity-50"
+                                >
+                                    Cancel
+                                </button>
 
-                                <textarea
-                                    value={commentText}
-                                    onChange={(event) =>
-                                        setCommentText(
-                                            event.target.value
-                                        )
+                                <button
+                                    type="button"
+                                    onClick={
+                                        addComment
                                     }
-                                    placeholder="Add a comment..."
-                                    rows={3}
-                                    disabled={isSubmittingComment}
-                                    className="w-full resize-y rounded-xl border border-line bg-surface-alt px-4 py-3 text-sm text-ink outline-none transition-colors focus:border-[#d4a017] disabled:opacity-60"
-                                />
-
-                                <div className="mt-2 flex justify-end gap-2">
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowCommentForm((prev) => !prev)}
-                                        className="rounded-full px-4 py-2 text-sm font-bold text-muted hover:text-ink disabled:opacity-50"
-                                    >
-                                        Cancel
-                                    </button>
-
-                                    <button
-                                        type="button"
-                                        onClick={addComment}
-                                        disabled={
-                                            !commentText.trim() ||
-                                            isSubmittingComment
-                                        }
-                                        className="rounded-full bg-[#d4a017] px-4 py-2 text-sm font-bold text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
-                                    >
-                                        {isSubmittingComment ? (
-                                            <span className="inline-flex min-w-[82px] items-center justify-start">
-                                                <span>Submitting</span>
-
-                                                <span className="w-[18px] text-left">
-                                                    {loadingDots}
-                                                </span>
+                                    disabled={
+                                        !commentText.trim() ||
+                                        isSubmittingComment
+                                    }
+                                    className="rounded-full bg-[#d4a017] px-4 py-2 text-sm font-bold text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+                                >
+                                    {isSubmittingComment ? (
+                                        <span className="inline-flex min-w-[82px] items-center justify-start">
+                                            <span>
+                                                Submitting
                                             </span>
-                                        ) : (
-                                            "Comment"
-                                        )}
-                                    </button>
-                                </div>
 
+                                            <span className="w-[18px] text-left">
+                                                {
+                                                    loadingDots
+                                                }
+                                            </span>
+                                        </span>
+                                    ) : (
+                                        "Comment"
+                                    )}
+                                </button>
                             </div>
                         </div>
-                    </>
+                    </div>
                 )}
 
                 {error && (
@@ -1074,394 +1207,694 @@ export default function Comments({
                     </div>
                 )}
 
-                {/* Comments */}
                 <div className="mt-6 space-y-6">
                     {isLoading ? (
                         <p className="py-6 text-center text-sm text-muted">
-                            Loading comments...
+                            <span className="inline-flex min-w-[82px] items-center justify-start">
+                                <span>
+                                    Loading comments
+                                </span>
+
+                                <span className="w-[18px] text-left">
+                                    {
+                                        loadingDots
+                                    }
+                                </span>
+                            </span>
                         </p>
                     ) : (
                         <>
                             {comments.map(
-                                (comment) => (
-                                    <div
-                                        key={
-                                            comment.id
-                                        }
-                                    >
-                                        <div className="flex gap-3">
-                                            {/* Avatar */}
-                                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-line bg-surface-alt text-sm font-bold text-ink">
-                                                <CountryFlag
-                                                    countryCode={
-                                                        comment.countryCode
-                                                    }
-                                                    entryId={
-                                                        comment.id
-                                                    }
-                                                />
-                                            </div>
+                                (comment) => {
+                                    const reactionSummary =
+                                        getReactionSummary(
+                                            comment
+                                        );
 
-                                            <div className="min-w-0 flex-1">
-                                                {/* Comment */}
-                                                <div className="rounded-xl bg-surface-alt px-4 py-3">
-                                                    <div className="text-sm font-bold text-ink">
-                                                        {
-                                                            comment.author
+                                    return (
+                                        <div
+                                            key={
+                                                comment.id
+                                            }
+                                        >
+                                            <div className="flex gap-3">
+                                                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-line bg-surface-alt text-sm font-bold text-ink">
+                                                    <CountryFlag
+                                                        countryCode={
+                                                            comment.countryCode
                                                         }
-                                                    </div>
-
-                                                    <div className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-slate">
-                                                        {renderCommentContent(
-                                                            comment.content
-                                                        )}
-                                                    </div>
+                                                        entryId={
+                                                            comment.id
+                                                        }
+                                                    />
                                                 </div>
 
-                                                {/* Actions */}
-                                                <div className="mt-2 flex items-center gap-4 px-2 text-xs font-semibold text-muted">
-                                                    {/* Like */}
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => {
-                                                            if (
-                                                                !comment.liked
-                                                            ) {
-                                                                setShowLikeBurst(
-                                                                    comment.id
-                                                                );
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="rounded-xl bg-surface-alt px-4 py-3">
+                                                        <div className="text-sm font-bold text-ink">
+                                                            {
+                                                                comment.author
                                                             }
+                                                        </div>
 
-                                                            toggleCommentLike(
-                                                                comment.id
-                                                            );
-                                                        }}
-                                                        className={`transition-colors hover:text-[#d4a017] ${comment.liked
-                                                            ? "text-[#d4a017]"
-                                                            : ""
-                                                            }`}
-                                                    >
-                                                        <span className="inline-flex items-center gap-1">
-                                                            <span className="relative inline-flex h-4 w-4 items-center justify-center">
-                                                                {showLikeBurst ===
-                                                                    comment.id && (
-                                                                        <span
-                                                                            className="pointer-events-none absolute inset-0 z-20"
-                                                                            onAnimationEnd={() =>
-                                                                                setShowLikeBurst(
-                                                                                    null
-                                                                                )
-                                                                            }
-                                                                        >
-                                                                            <Heart className="like-reaction like-reaction-1" />
-                                                                            <Heart className="like-reaction like-reaction-2" />
-                                                                            <Heart className="like-reaction like-reaction-3" />
-                                                                            <Heart className="like-reaction like-reaction-4" />
-                                                                            <Heart className="like-reaction like-reaction-5" />
-                                                                            <Heart className="like-reaction like-reaction-6" />
-                                                                            <Heart className="like-reaction like-reaction-7" />
-                                                                            <Heart className="like-reaction like-reaction-8" />
-                                                                            <Heart className="like-reaction like-reaction-9" />
-                                                                            <Heart className="like-reaction like-reaction-10" />
-                                                                        </span>
-                                                                    )}
+                                                        <div className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-slate">
+                                                            {renderCommentContent(
+                                                                comment.content
+                                                            )}
+                                                        </div>
+                                                    </div>
 
-                                                                <ThumbsUp className="h-3.5 w-3.5" />
-                                                            </span>
-
-                                                            Like
-
-                                                            {comment.likes >
-                                                                0 &&
-                                                                ` · ${comment.likes}`}
-                                                        </span>
-                                                    </button>
-
-                                                    {/* Reply */}
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => {
-                                                            setReplyingTo(
-                                                                comment.id
-                                                            );
-                                                            setReplyText(
-                                                                ""
-                                                            );
-                                                            setReplyAuthor(
-                                                                ""
-                                                            );
-                                                            setError(
-                                                                ""
-                                                            );
-                                                            setReplyStatus(
-                                                                null
-                                                            );
-                                                        }}
-                                                        className="transition-colors hover:text-[#d4a017]"
-                                                    >
-                                                        Reply
-                                                    </button>
-
-                                                    {/* Replies */}
-                                                    {comment
-                                                        .replies
-                                                        .length >
-                                                        0 && (
+                                                    <div className="mt-2 flex items-center gap-4 px-2 text-xs font-semibold text-muted">
+                                                        {/* Like button + reaction picker */}
+                                                        <div className="relative">
                                                             <button
                                                                 type="button"
                                                                 onClick={() =>
-                                                                    toggleReplies(
-                                                                        comment.id
+                                                                    setReactionPicker(
+                                                                        (previous) =>
+                                                                            previous === comment.id
+                                                                                ? null
+                                                                                : comment.id
                                                                     )
                                                                 }
-                                                                className="transition-colors hover:text-[#d4a017]"
-                                                            >
-                                                                {showReplies.includes(
-                                                                    comment.id
-                                                                )
-                                                                    ? "Hide replies"
-                                                                    : `View ${comment.replies.length} ${comment
-                                                                        .replies
-                                                                        .length ===
-                                                                        1
-                                                                        ? "reply"
-                                                                        : "replies"
+                                                                className={`cursor-pointer inline-flex items-center gap-1 transition-colors ${comment.userReaction
+                                                                    ? "text-[#d4a017]"
+                                                                    : "text-muted hover:text-[#d4a017]"
                                                                     }`}
+                                                            >
+                                                                <motion.span
+                                                                    whileHover={{
+                                                                        scale: 1.45,
+                                                                    }}
+                                                                    transition={{
+                                                                        duration: 0.15,
+                                                                    }}
+                                                                    className="inline-block origin-center"
+                                                                >
+                                                                    {comment.userReaction
+                                                                        ? getReactionMeta(
+                                                                            comment.userReaction
+                                                                        ).emoji
+                                                                        : "👍"}
+                                                                </motion.span>
+
+                                                                <span>
+                                                                    {comment.userReaction
+                                                                        ? getReactionMeta(
+                                                                            comment.userReaction
+                                                                        ).label
+                                                                        : "Like"}
+                                                                </span>
                                                             </button>
+
+                                                            {reactionPicker ===
+                                                                comment.id && (
+                                                                    <div
+                                                                        ref={
+                                                                            reactionPickerRef
+                                                                        }
+                                                                        className="absolute bottom-full left-0 z-30 mb-2 flex items-center gap-0.5 rounded-full border border-line bg-surface px-1.5 py-1 shadow-lg"
+                                                                    >
+                                                                        {REACTIONS.map(
+                                                                            (
+                                                                                reaction
+                                                                            ) => (
+                                                                                <button
+                                                                                    key={
+                                                                                        reaction.type
+                                                                                    }
+                                                                                    type="button"
+                                                                                    title={
+                                                                                        reaction.label
+                                                                                    }
+                                                                                    aria-label={
+                                                                                        reaction.label
+                                                                                    }
+                                                                                    onClick={() =>
+                                                                                        toggleCommentReaction(
+                                                                                            comment.id,
+                                                                                            reaction.type
+                                                                                        )
+                                                                                    }
+                                                                                    className={`flex h-7 w-7 items-center justify-center rounded-full text-xs leading-none transition-all duration-150 ${comment.userReaction ===
+                                                                                        reaction.type
+                                                                                        ? "bg-[#d4a017]/25"
+                                                                                        : "hover:bg-[#d4a017]/25"
+                                                                                        }`}
+                                                                                >
+                                                                                    <motion.span
+                                                                                        whileHover={{
+                                                                                            scale: 1.45,
+                                                                                        }}
+                                                                                        transition={{
+                                                                                            duration: 0.15,
+                                                                                        }}
+                                                                                        className="inline-flex translate-x-[1px] origin-center items-center justify-center leading-none"
+                                                                                    >
+                                                                                        {
+                                                                                            reaction.emoji
+                                                                                        }
+                                                                                    </motion.span>
+                                                                                </button>
+                                                                            )
+                                                                        )}
+                                                                    </div>
+                                                                )}
+                                                        </div>
+
+                                                        {/* Reaction summary — display only */}
+                                                        {reactionSummary.length > 0 && (
+                                                            <span className="inline-flex items-center gap-0">
+                                                                <span className="text-muted">
+                                                                    {reactionSummary.length === 1
+                                                                        ? "Reaction"
+                                                                        : "Reactions"}
+                                                                </span>
+
+                                                                <span className="inline-flex items-center gap-1">
+                                                                    {reactionSummary.map(
+                                                                        (reaction) => (
+                                                                            <span
+                                                                                key={reaction.type}
+                                                                                className={`inline-flex items-center gap-1 ${comment.userReaction ===
+                                                                                    reaction.type
+                                                                                    ? "text-[#d4a017]"
+                                                                                    : ""
+                                                                                    }`}
+                                                                                title={reaction.label}
+                                                                            >
+                                                                                <span className="relative inline-flex h-5 w-5 items-center justify-center">
+                                                                                    {showReactionBurst?.id ===
+                                                                                        comment.id &&
+                                                                                        showReactionBurst.type ===
+                                                                                        "comment" &&
+                                                                                        showReactionBurst.reaction ===
+                                                                                        reaction.type && (
+                                                                                            <span
+                                                                                                className="pointer-events-none absolute left-1/2 top-1/2 z-20 h-0 w-0"
+                                                                                                onAnimationEnd={() =>
+                                                                                                    setShowReactionBurst(
+                                                                                                        null
+                                                                                                    )
+                                                                                                }
+                                                                                            >
+                                                                                                {Array.from({
+                                                                                                    length: 10,
+                                                                                                }).map(
+                                                                                                    (_, index) => {
+                                                                                                        const reactionMeta =
+                                                                                                            getReactionMeta(
+                                                                                                                showReactionBurst.reaction
+                                                                                                            );
+
+                                                                                                        return (
+                                                                                                            <span
+                                                                                                                key={
+                                                                                                                    index
+                                                                                                                }
+                                                                                                                className={`like-reaction like-reaction-${index + 1}`}
+                                                                                                            >
+                                                                                                                {
+                                                                                                                    reactionMeta.emoji
+                                                                                                                }
+                                                                                                            </span>
+                                                                                                        );
+                                                                                                    }
+                                                                                                )}
+                                                                                            </span>
+                                                                                        )}
+
+                                                                                    <span className="text-xs leading-none cursor-pointer">
+                                                                                        <motion.span
+                                                                                            whileHover={{
+                                                                                                scale: 1.45,
+                                                                                            }}
+                                                                                            transition={{
+                                                                                                duration: 0.15,
+                                                                                            }}
+                                                                                            className="inline-block"
+                                                                                        >
+                                                                                            {reaction.emoji}
+                                                                                        </motion.span>
+                                                                                    </span>
+                                                                                </span>
+
+                                                                                <span className="text-xs leading-none">
+                                                                                    {
+                                                                                        comment
+                                                                                            .reactionCounts[
+                                                                                        reaction.type
+                                                                                        ]
+                                                                                    }
+                                                                                </span>
+                                                                            </span>
+                                                                        )
+                                                                    )}
+                                                                </span>
+                                                            </span>
                                                         )}
-                                                </div>
 
-                                                {/* Reply input */}
-                                                {replyingTo ===
-                                                    comment.id && (
-                                                        <div className="mt-4 flex gap-3 pl-2">
-                                                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-line bg-surface-alt text-xs font-bold text-white">
-                                                                <CountryFlag
-                                                                    countryCode={
-                                                                        null
-                                                                    }
-                                                                    entryId={
-                                                                        comment.id
-                                                                    }
-                                                                />
-                                                            </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setReplyingTo(
+                                                                    comment.id
+                                                                );
+                                                                setReplyText(
+                                                                    ""
+                                                                );
+                                                                setReplyAuthor(
+                                                                    ""
+                                                                );
+                                                                setError(
+                                                                    ""
+                                                                );
+                                                                setReplyStatus(
+                                                                    null
+                                                                );
+                                                            }}
+                                                            className="transition-colors hover:text-[#d4a017]"
+                                                        >
+                                                            Reply
+                                                        </button>
 
-                                                            <div className="flex-1">
-                                                                <input
-                                                                    type="text"
-                                                                    value={
-                                                                        replyAuthor
-                                                                    }
-                                                                    onChange={(
-                                                                        event
-                                                                    ) =>
-                                                                        setReplyAuthor(
-                                                                            event
-                                                                                .target
-                                                                                .value
+                                                        {comment
+                                                            .replies
+                                                            .length >
+                                                            0 && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() =>
+                                                                        toggleReplies(
+                                                                            comment.id
                                                                         )
                                                                     }
-                                                                    placeholder="Your name"
-                                                                    disabled={
-                                                                        isSubmittingReply !==
-                                                                        null
-                                                                    }
-                                                                    className="mb-2 w-full rounded-xl border border-line bg-white px-3 py-2 text-sm text-ink outline-none transition-colors focus:border-[#d4a017] disabled:opacity-60"
-                                                                />
+                                                                    className="transition-colors hover:text-[#d4a017]"
+                                                                >
+                                                                    {showReplies.includes(
+                                                                        comment.id
+                                                                    )
+                                                                        ? "Hide replies"
+                                                                        : `View ${comment.replies.length} ${comment.replies.length ===
+                                                                            1
+                                                                            ? "reply"
+                                                                            : "replies"
+                                                                        }`}
+                                                                </button>
+                                                            )}
+                                                    </div>
 
-                                                                <textarea
-                                                                    value={replyText}
-                                                                    onChange={(event) =>
-                                                                        setReplyText(event.target.value)
-                                                                    }
-                                                                    placeholder="Write a reply..."
-                                                                    rows={2}
-                                                                    disabled={isSubmittingReply !== null}
-                                                                    className="w-full resize-y rounded-xl border border-line bg-white px-3 py-2 text-sm text-ink outline-none transition-colors focus:border-[#d4a017] disabled:opacity-60"
-                                                                />
+                                                    {replyingTo ===
+                                                        comment.id && (
+                                                            <div className="mt-4 flex gap-3 pl-2">
+                                                                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-line bg-surface-alt text-xs font-bold text-white">
+                                                                    <CountryFlag
+                                                                        countryCode={
+                                                                            null
+                                                                        }
+                                                                        entryId={
+                                                                            comment.id
+                                                                        }
+                                                                    />
+                                                                </div>
 
-                                                                <div className="mt-2 flex justify-end gap-2">
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => {
-                                                                            setReplyingTo(
-                                                                                null
-                                                                            );
-                                                                            setReplyText(
-                                                                                ""
-                                                                            );
+                                                                <div className="flex-1">
+                                                                    <input
+                                                                        type="text"
+                                                                        value={
+                                                                            replyAuthor
+                                                                        }
+                                                                        onChange={(
+                                                                            event
+                                                                        ) =>
                                                                             setReplyAuthor(
-                                                                                ""
-                                                                            );
-                                                                            setReplyStatus(
-                                                                                null
-                                                                            );
-                                                                        }}
+                                                                                event
+                                                                                    .target
+                                                                                    .value
+                                                                            )
+                                                                        }
+                                                                        placeholder="Your name"
                                                                         disabled={
                                                                             isSubmittingReply !==
                                                                             null
                                                                         }
-                                                                        className="rounded-full px-3 py-1.5 text-xs font-bold text-muted hover:text-ink disabled:opacity-50"
-                                                                    >
-                                                                        Cancel
-                                                                    </button>
+                                                                        className="mb-2 w-full rounded-xl border border-line bg-white px-3 py-2 text-sm text-ink outline-none transition-colors focus:border-[#d4a017] disabled:opacity-60"
+                                                                    />
 
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() =>
-                                                                            addReply(comment.id)
+                                                                    <textarea
+                                                                        value={
+                                                                            replyText
+                                                                        }
+                                                                        onChange={(
+                                                                            event
+                                                                        ) =>
+                                                                            setReplyText(
+                                                                                event
+                                                                                    .target
+                                                                                    .value
+                                                                            )
+                                                                        }
+                                                                        placeholder="Write a reply..."
+                                                                        rows={
+                                                                            2
                                                                         }
                                                                         disabled={
-                                                                            !replyText.trim() ||
-                                                                            isSubmittingReply !== null
+                                                                            isSubmittingReply !==
+                                                                            null
                                                                         }
-                                                                        className="rounded-full bg-[#d4a017] px-3 py-1.5 text-xs font-bold text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
-                                                                    >
-                                                                        {isSubmittingReply === comment.id ? (
-                                                                            <span className="inline-flex min-w-[58px] items-center justify-start">
-                                                                                <span>Submitting</span>
+                                                                        className="w-full resize-y rounded-xl border border-line bg-white px-3 py-2 text-sm text-ink outline-none transition-colors focus:border-[#d4a017] disabled:opacity-60"
+                                                                    />
 
-                                                                                <span className="w-[18px] text-left">
-                                                                                    {loadingDots}
-                                                                                </span>
-                                                                            </span>
-                                                                        ) : (
-                                                                            "Reply"
-                                                                        )}
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    )}
+                                                                    <div className="mt-2 flex justify-end gap-2">
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                                setReplyingTo(
+                                                                                    null
+                                                                                );
+                                                                                setReplyText(
+                                                                                    ""
+                                                                                );
+                                                                                setReplyAuthor(
+                                                                                    ""
+                                                                                );
+                                                                                setReplyStatus(
+                                                                                    null
+                                                                                );
+                                                                            }}
+                                                                            disabled={
+                                                                                isSubmittingReply !==
+                                                                                null
+                                                                            }
+                                                                            className="rounded-full px-3 py-1.5 text-xs font-bold text-muted hover:text-ink disabled:opacity-50"
+                                                                        >
+                                                                            Cancel
+                                                                        </button>
 
-                                                {/* Reply status */}
-                                                {replyStatus?.commentId ===
-                                                    comment.id && (
-                                                        <div
-                                                            className={`mt-4 ml-[52px] w-[calc(100%-52px)] rounded-xl px-4 py-3 text-center text-sm ${replyStatus.type ===
-                                                                "success"
-                                                                ? "border border-[#d4a017]/30 bg-[#d4a017]/10 text-slate"
-                                                                : "border border-red-200 bg-red-50 text-red-600"
-                                                                }`}
-                                                        >
-                                                            {
-                                                                replyStatus.message
-                                                            }
-                                                        </div>
-                                                    )}
-
-                                                {/* Replies */}
-                                                {showReplies.includes(
-                                                    comment.id
-                                                ) &&
-                                                    comment
-                                                        .replies
-                                                        .length >
-                                                    0 && (
-                                                        <div className="mt-4 ml-5 space-y-4 border-l-2 border-line pl-4">
-                                                            {comment.replies.map(
-                                                                (
-                                                                    reply
-                                                                ) => (
-                                                                    <div
-                                                                        key={
-                                                                            reply.id
-                                                                        }
-                                                                        className="flex gap-3"
-                                                                    >
-                                                                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-line bg-surface-alt text-xs font-bold text-ink">
-                                                                            <CountryFlag
-                                                                                countryCode={
-                                                                                    reply.countryCode
-                                                                                }
-                                                                                entryId={
-                                                                                    reply.id
-                                                                                }
-                                                                            />
-                                                                        </div>
-
-                                                                        <div className="min-w-0 flex-1">
-                                                                            <div className="rounded-xl bg-surface-alt px-4 py-3">
-                                                                                <div className="text-sm font-bold text-ink">
-                                                                                    {
-                                                                                        reply.author
-                                                                                    }
-                                                                                </div>
-
-                                                                                <div className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-slate">
-                                                                                    {renderCommentContent(
-                                                                                        reply.content
-                                                                                    )}
-                                                                                </div>
-                                                                            </div>
-
-                                                                            {/* Like */}
-                                                                            <button
-                                                                                type="button"
-                                                                                onClick={() => {
-                                                                                    if (
-                                                                                        !reply.liked
-                                                                                    ) {
-                                                                                        setShowLikeBurst(
-                                                                                            reply.id
-                                                                                        );
-                                                                                    }
-
-                                                                                    toggleCommentLike(
-                                                                                        comment.id,
-                                                                                        reply.id
-                                                                                    );
-                                                                                }}
-                                                                                className={`text-xs font-semibold transition-colors hover:text-[#d4a017] ${reply.liked
-                                                                                    ? "text-[#d4a017]"
-                                                                                    : "text-muted"
-                                                                                    }`}
-                                                                            >
-                                                                                <span className="inline-flex items-center gap-1">
-                                                                                    <span className="relative inline-flex h-4 w-4 items-center justify-center">
-                                                                                        {showLikeBurst ===
-                                                                                            reply.id && (
-                                                                                                <span
-                                                                                                    className="pointer-events-none absolute inset-0 z-20"
-                                                                                                    onAnimationEnd={() =>
-                                                                                                        setShowLikeBurst(
-                                                                                                            null
-                                                                                                        )
-                                                                                                    }
-                                                                                                >
-                                                                                                    <Heart className="like-reaction like-reaction-1" />
-                                                                                                    <Heart className="like-reaction like-reaction-2" />
-                                                                                                    <Heart className="like-reaction like-reaction-3" />
-                                                                                                    <Heart className="like-reaction like-reaction-4" />
-                                                                                                    <Heart className="like-reaction like-reaction-5" />
-                                                                                                    <Heart className="like-reaction like-reaction-6" />
-                                                                                                    <Heart className="like-reaction like-reaction-7" />
-                                                                                                    <Heart className="like-reaction like-reaction-8" />
-                                                                                                    <Heart className="like-reaction like-reaction-9" />
-                                                                                                    <Heart className="like-reaction like-reaction-10" />
-                                                                                                </span>
-                                                                                            )}
-
-                                                                                        <ThumbsUp className="h-3.5 w-3.5" />
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() =>
+                                                                                addReply(
+                                                                                    comment.id
+                                                                                )
+                                                                            }
+                                                                            disabled={
+                                                                                !replyText.trim() ||
+                                                                                isSubmittingReply !==
+                                                                                null
+                                                                            }
+                                                                            className="rounded-full bg-[#d4a017] px-3 py-1.5 text-xs font-bold text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+                                                                        >
+                                                                            {isSubmittingReply ===
+                                                                                comment.id ? (
+                                                                                <span className="inline-flex min-w-[58px] items-center justify-start">
+                                                                                    <span>
+                                                                                        Submitting
                                                                                     </span>
 
-                                                                                    Like
-
-                                                                                    {reply.likes >
-                                                                                        0 &&
-                                                                                        ` · ${reply.likes}`}
+                                                                                    <span className="w-[18px] text-left">
+                                                                                        {
+                                                                                            loadingDots
+                                                                                        }
+                                                                                    </span>
                                                                                 </span>
-                                                                            </button>
-                                                                        </div>
+                                                                            ) : (
+                                                                                "Reply"
+                                                                            )}
+                                                                        </button>
                                                                     </div>
-                                                                )
-                                                            )}
-                                                        </div>
-                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                    {replyStatus?.commentId ===
+                                                        comment.id && (
+                                                            <div
+                                                                className={`mt-4 ml-[52px] w-[calc(100%-52px)] rounded-xl px-4 py-3 text-center text-sm ${replyStatus.type ===
+                                                                    "success"
+                                                                    ? "border border-[#d4a017]/30 bg-[#d4a017]/10 text-slate"
+                                                                    : "border border-red-200 bg-red-50 text-red-600"
+                                                                    }`}
+                                                            >
+                                                                {
+                                                                    replyStatus.message
+                                                                }
+                                                            </div>
+                                                        )}
+
+                                                    {showReplies.includes(
+                                                        comment.id
+                                                    ) &&
+                                                        comment
+                                                            .replies
+                                                            .length >
+                                                        0 && (
+                                                            <div className="mt-4 ml-5 space-y-4 border-l-2 border-line pl-4">
+                                                                {comment.replies.map(
+                                                                    (
+                                                                        reply
+                                                                    ) => {
+                                                                        const replyReactionSummary =
+                                                                            getReactionSummary(
+                                                                                reply
+                                                                            );
+
+                                                                        return (
+                                                                            <div
+                                                                                key={
+                                                                                    reply.id
+                                                                                }
+                                                                                className="flex gap-3"
+                                                                            >
+                                                                                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-line bg-surface-alt text-xs font-bold text-ink">
+                                                                                    <CountryFlag
+                                                                                        countryCode={
+                                                                                            reply.countryCode
+                                                                                        }
+                                                                                        entryId={
+                                                                                            reply.id
+                                                                                        }
+                                                                                    />
+                                                                                </div>
+
+                                                                                <div className="min-w-0 flex-1">
+                                                                                    <div className="rounded-xl bg-surface-alt px-4 py-3">
+                                                                                        <div className="text-sm font-bold text-ink">
+                                                                                            {
+                                                                                                reply.author
+                                                                                            }
+                                                                                        </div>
+
+                                                                                        <div className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-slate">
+                                                                                            {renderCommentContent(
+                                                                                                reply.content
+                                                                                            )}
+                                                                                        </div>
+                                                                                    </div>
+
+                                                                                    <div className="mt-2 flex items-center gap-4 text-xs font-semibold text-muted">
+                                                                                        {/* Like button + reaction picker */}
+                                                                                        <div className="relative">
+                                                                                            <button
+                                                                                                type="button"
+                                                                                                onClick={() =>
+                                                                                                    setReactionPicker(
+                                                                                                        (previous) =>
+                                                                                                            previous === reply.id
+                                                                                                                ? null
+                                                                                                                : reply.id
+                                                                                                    )
+                                                                                                }
+                                                                                                className={`cursor-pointer inline-flex items-center gap-1 transition-colors ${reply.userReaction
+                                                                                                    ? "text-[#d4a017]"
+                                                                                                    : "text-muted hover:text-[#d4a017]"
+                                                                                                    }`}
+                                                                                            >
+                                                                                                <motion.span
+                                                                                                    whileHover={{
+                                                                                                        scale: 1.45,
+                                                                                                    }}
+                                                                                                    transition={{
+                                                                                                        duration: 0.15,
+                                                                                                    }}
+                                                                                                    className="inline-block origin-center"
+                                                                                                >
+                                                                                                    {reply.userReaction
+                                                                                                        ? getReactionMeta(
+                                                                                                            reply.userReaction
+                                                                                                        ).emoji
+                                                                                                        : "👍"}
+                                                                                                </motion.span>
+
+                                                                                                <span>
+                                                                                                    {reply.userReaction
+                                                                                                        ? getReactionMeta(
+                                                                                                            reply.userReaction
+                                                                                                        ).label
+                                                                                                        : "Like"}
+                                                                                                </span>
+                                                                                            </button>
+
+                                                                                            {reactionPicker ===
+                                                                                                reply.id && (
+                                                                                                    <div
+                                                                                                        ref={
+                                                                                                            reactionPickerRef
+                                                                                                        }
+                                                                                                        className="absolute bottom-full left-0 z-30 mb-2 flex items-center gap-0.5 rounded-full border border-line bg-surface px-1.5 py-1 shadow-lg"
+                                                                                                    >
+                                                                                                        {REACTIONS.map(
+                                                                                                            (
+                                                                                                                reaction
+                                                                                                            ) => (
+                                                                                                                <button
+                                                                                                                    key={
+                                                                                                                        reaction.type
+                                                                                                                    }
+                                                                                                                    type="button"
+                                                                                                                    title={
+                                                                                                                        reaction.label
+                                                                                                                    }
+                                                                                                                    aria-label={
+                                                                                                                        reaction.label
+                                                                                                                    }
+                                                                                                                    onClick={() =>
+                                                                                                                        toggleCommentReaction(
+                                                                                                                            comment.id,
+                                                                                                                            reaction.type,
+                                                                                                                            reply.id
+                                                                                                                        )
+                                                                                                                    }
+                                                                                                                    className={`flex h-7 w-7 items-center justify-center rounded-full text-xs leading-none transition-all duration-150 ${reply.userReaction ===
+                                                                                                                        reaction.type
+                                                                                                                        ? "bg-[#d4a017]/25"
+                                                                                                                        : "hover:bg-[#d4a017]/25"
+                                                                                                                        }`}
+                                                                                                                >
+                                                                                                                    <motion.span
+                                                                                                                        whileHover={{
+                                                                                                                            scale: 1.45,
+                                                                                                                        }}
+                                                                                                                        transition={{
+                                                                                                                            duration: 0.15,
+                                                                                                                        }}
+                                                                                                                        className="inline-flex translate-x-[1px] origin-center items-center justify-center leading-none"
+                                                                                                                    >
+                                                                                                                        {
+                                                                                                                            reaction.emoji
+                                                                                                                        }
+                                                                                                                    </motion.span>
+                                                                                                                </button>
+                                                                                                            )
+                                                                                                        )}
+                                                                                                    </div>
+                                                                                                )}
+                                                                                        </div>
+
+                                                                                        {/* Reaction summary — display only */}
+                                                                                        {replyReactionSummary.length > 0 && (
+                                                                                            <span className="inline-flex items-center gap-0">
+                                                                                                <span className="text-muted">
+                                                                                                    {replyReactionSummary.length === 1
+                                                                                                        ? "Reaction"
+                                                                                                        : "Reactions"}
+                                                                                                </span>
+
+                                                                                                <span className="inline-flex items-center gap-1">
+                                                                                                    {replyReactionSummary.map(
+                                                                                                        (reaction) => (
+                                                                                                            <span
+                                                                                                                key={reaction.type}
+                                                                                                                className={`inline-flex items-center gap-1 ${reply.userReaction ===
+                                                                                                                    reaction.type
+                                                                                                                    ? "text-[#d4a017]"
+                                                                                                                    : ""
+                                                                                                                    }`}
+                                                                                                                title={reaction.label}
+                                                                                                            >
+                                                                                                                <span className="relative inline-flex h-5 w-5 items-center justify-center">
+                                                                                                                    {showReactionBurst?.id ===
+                                                                                                                        reply.id &&
+                                                                                                                        showReactionBurst.type ===
+                                                                                                                        "reply" &&
+                                                                                                                        showReactionBurst.reaction ===
+                                                                                                                        reaction.type && (
+                                                                                                                            <span
+                                                                                                                                className="pointer-events-none absolute left-1/2 top-1/2 z-20 h-0 w-0"
+                                                                                                                                onAnimationEnd={() =>
+                                                                                                                                    setShowReactionBurst(
+                                                                                                                                        null
+                                                                                                                                    )
+                                                                                                                                }
+                                                                                                                            >
+                                                                                                                                {Array.from({
+                                                                                                                                    length: 10,
+                                                                                                                                }).map(
+                                                                                                                                    (_, index) => {
+                                                                                                                                        const reactionMeta =
+                                                                                                                                            getReactionMeta(
+                                                                                                                                                showReactionBurst.reaction
+                                                                                                                                            );
+
+                                                                                                                                        return (
+                                                                                                                                            <span
+                                                                                                                                                key={
+                                                                                                                                                    index
+                                                                                                                                                }
+                                                                                                                                                className={`like-reaction like-reaction-${index + 1}`}
+                                                                                                                                            >
+                                                                                                                                                {
+                                                                                                                                                    reactionMeta.emoji
+                                                                                                                                                }
+                                                                                                                                            </span>
+                                                                                                                                        );
+                                                                                                                                    }
+                                                                                                                                )}
+                                                                                                                            </span>
+                                                                                                                        )}
+
+                                                                                                                    <span className="text-xs leading-none cursor-pointer">
+                                                                                                                        <motion.span
+                                                                                                                            whileHover={{
+                                                                                                                                scale: 1.45,
+                                                                                                                            }}
+                                                                                                                            transition={{
+                                                                                                                                duration: 0.15,
+                                                                                                                            }}
+                                                                                                                            className="inline-block"
+                                                                                                                        >
+                                                                                                                            {reaction.emoji}
+                                                                                                                        </motion.span>
+                                                                                                                    </span>
+                                                                                                                </span>
+
+                                                                                                                <span className="text-xs leading-none">
+                                                                                                                    {
+                                                                                                                        reply
+                                                                                                                            .reactionCounts[
+                                                                                                                        reaction.type
+                                                                                                                        ]
+                                                                                                                    }
+                                                                                                                </span>
+                                                                                                            </span>
+                                                                                                        )
+                                                                                                    )}
+                                                                                                </span>
+                                                                                            </span>
+                                                                                        )}
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                        );
+                                                                    }
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                )
+                                    );
+                                }
                             )}
 
                             {comments.length ===
