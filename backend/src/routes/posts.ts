@@ -6,6 +6,7 @@ import {
   DeleteObjectCommand,
   PutObjectCommand,
 } from "@aws-sdk/client-s3";
+import { CommentReaction } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/auth.js";
 import { s3, STORAGE_BUCKET } from "../lib/s3.js";
@@ -628,7 +629,10 @@ router.get("/:slug/comments", async (req, res) => {
 
     const formattedComments = comments.map(
       (comment: typeof comments[number]) => {
-        const reactionCounts = {
+        const reactionCounts: Record<
+          CommentReaction,
+          number
+        > = {
           LIKE: 0,
           CELEBRATE: 0,
           SUPPORT: 0,
@@ -637,23 +641,19 @@ router.get("/:slug/comments", async (req, res) => {
           FUNNY: 0,
         };
 
-        let userReaction:
-          | "LIKE"
-          | "CELEBRATE"
-          | "SUPPORT"
-          | "LOVE"
-          | "INSIGHTFUL"
-          | "FUNNY"
-          | null = null;
+        let userReaction: CommentReaction | null = null;
 
         for (const like of comment.likes) {
-          reactionCounts[like.reaction]++;
+          const reaction =
+            like.reaction as CommentReaction;
+
+          reactionCounts[reaction]++;
 
           if (
             ipAddress &&
             like.ip_address === ipAddress
           ) {
-            userReaction = like.reaction;
+            userReaction = reaction;
           }
         }
 
@@ -668,7 +668,10 @@ router.get("/:slug/comments", async (req, res) => {
           userReaction,
           replies: comment.replies.map(
             (reply: typeof comment.replies[number]) => {
-              const replyReactionCounts = {
+              const replyReactionCounts: Record<
+                CommentReaction,
+                number
+              > = {
                 LIKE: 0,
                 CELEBRATE: 0,
                 SUPPORT: 0,
@@ -678,22 +681,20 @@ router.get("/:slug/comments", async (req, res) => {
               };
 
               let replyUserReaction:
-                | "LIKE"
-                | "CELEBRATE"
-                | "SUPPORT"
-                | "LOVE"
-                | "INSIGHTFUL"
-                | "FUNNY"
+                | CommentReaction
                 | null = null;
 
               for (const like of reply.likes) {
-                replyReactionCounts[like.reaction]++;
+                const reaction =
+                  like.reaction as CommentReaction;
+
+                replyReactionCounts[reaction]++;
 
                 if (
                   ipAddress &&
                   like.ip_address === ipAddress
                 ) {
-                  replyUserReaction = like.reaction;
+                  replyUserReaction = reaction;
                 }
               }
 
@@ -704,8 +705,10 @@ router.get("/:slug/comments", async (req, res) => {
                 countryCode: getCountryCodeFromIp(
                   reply.ip_address
                 ),
-                reactionCounts: replyReactionCounts,
-                userReaction: replyUserReaction,
+                reactionCounts:
+                  replyReactionCounts,
+                userReaction:
+                  replyUserReaction,
               };
             }
           ),
@@ -1171,22 +1174,22 @@ router.post("/:id/comments/:commentId/like", async (req, res) => {
     });
   }
 
-  const validReactions = [
-    "LIKE",
-    "CELEBRATE",
-    "SUPPORT",
-    "LOVE",
-    "INSIGHTFUL",
-    "FUNNY",
-  ] as const;
+  const validReactions: readonly CommentReaction[] = [
+    CommentReaction.LIKE,
+    CommentReaction.CELEBRATE,
+    CommentReaction.SUPPORT,
+    CommentReaction.LOVE,
+    CommentReaction.INSIGHTFUL,
+    CommentReaction.FUNNY,
+  ];
 
-  const reaction = req.body?.reaction ?? "LIKE";
+  const reaction =
+    req.body?.reaction as CommentReaction | undefined;
 
-  if (!validReactions.includes(reaction)) {
-    return res.status(400).json({
-      message: "Invalid reaction.",
-    });
-  }
+  const selectedReaction: CommentReaction =
+    reaction && validReactions.includes(reaction)
+      ? reaction
+      : CommentReaction.LIKE;
 
   const forwardedFor = req.headers["x-forwarded-for"];
 
@@ -1237,7 +1240,7 @@ router.post("/:id/comments/:commentId/like", async (req, res) => {
       });
 
     if (existingReaction) {
-      if (existingReaction.reaction === reaction) {
+      if (existingReaction.reaction === selectedReaction) {
         // Clicking the same reaction again removes it.
         await prisma.postCommentLike.delete({
           where: {
@@ -1264,7 +1267,7 @@ router.post("/:id/comments/:commentId/like", async (req, res) => {
             id: existingReaction.id,
           },
           data: {
-            reaction,
+            reaction: selectedReaction,
           },
         });
       }
@@ -1274,7 +1277,7 @@ router.post("/:id/comments/:commentId/like", async (req, res) => {
         data: {
           commentId,
           ip_address: ipAddress,
-          reaction,
+          reaction: selectedReaction,
         },
       });
 
@@ -1302,7 +1305,10 @@ router.post("/:id/comments/:commentId/like", async (req, res) => {
         },
       });
 
-    const reactionCounts = {
+    const reactionCounts: Record<
+      CommentReaction,
+      number
+    > = {
       LIKE: 0,
       CELEBRATE: 0,
       SUPPORT: 0,
@@ -1312,7 +1318,10 @@ router.post("/:id/comments/:commentId/like", async (req, res) => {
     };
 
     for (const group of reactionGroups) {
-      reactionCounts[group.reaction] =
+      const groupReaction =
+        group.reaction as CommentReaction;
+
+      reactionCounts[groupReaction] =
         group._count.reaction;
     }
 
