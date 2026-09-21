@@ -1366,9 +1366,13 @@ export default function Comments({
                                                         {reactionSummary.length > 0 && (
                                                             <span className="inline-flex items-center gap-0">
                                                                 <span className="text-muted">
-                                                                    {reactionSummary.length === 1
-                                                                        ? "Reaction"
-                                                                        : "Reactions"}
+                                                                    {reactionSummary.reduce(
+                                                                        (total, reaction) =>
+                                                                            total + (comment.reactionCounts[reaction.type] ?? 0),
+                                                                        0
+                                                                    ) === 1
+                                                                        ? "React"
+                                                                        : "Reacts"}
                                                                 </span>
 
                                                                 <span className="inline-flex items-center gap-1">
@@ -1376,7 +1380,7 @@ export default function Comments({
                                                                         (reaction) => (
                                                                             <span
                                                                                 key={reaction.type}
-                                                                                className={`inline-flex items-center gap-1 ${comment.userReaction ===
+                                                                                className={`inline-flex items-center gap-0 ${comment.userReaction ===
                                                                                     reaction.type
                                                                                     ? "text-[#d4a017]"
                                                                                     : ""
@@ -1795,9 +1799,13 @@ export default function Comments({
                                                                                         {replyReactionSummary.length > 0 && (
                                                                                             <span className="inline-flex items-center gap-0">
                                                                                                 <span className="text-muted">
-                                                                                                    {replyReactionSummary.length === 1
-                                                                                                        ? "Reaction"
-                                                                                                        : "Reactions"}
+                                                                                                    {replyReactionSummary.reduce(
+                                                                                                        (total, reaction) =>
+                                                                                                            total + (reply.reactionCounts[reaction.type] ?? 0),
+                                                                                                        0
+                                                                                                    ) === 1
+                                                                                                        ? "React"
+                                                                                                        : "Reacts"}
                                                                                                 </span>
 
                                                                                                 <span className="inline-flex items-center gap-1">
@@ -1805,7 +1813,7 @@ export default function Comments({
                                                                                                         (reaction) => (
                                                                                                             <span
                                                                                                                 key={reaction.type}
-                                                                                                                className={`inline-flex items-center gap-1 ${reply.userReaction ===
+                                                                                                                className={`inline-flex items-center gap-0 ${reply.userReaction ===
                                                                                                                     reaction.type
                                                                                                                     ? "text-[#d4a017]"
                                                                                                                     : ""
