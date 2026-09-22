@@ -1,10 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
     Check,
     ChevronLeft,
     ChevronRight,
     MessageCircle,
-    MessageSquare,
     Search,
     ThumbsUp,
     Trash2,
@@ -23,8 +22,7 @@ import {
     AlertDialogTitle,
 } from "./AlertDialog";
 import { useLoadingDots } from "../hooks/useLoadingDots";
-
-const REFRESH_INTERVAL = 10000;
+import { supabase } from "../lib/supabase";
 
 type PostComment = {
     id: number;
@@ -115,21 +113,51 @@ export default function Comments() {
         setTotalPages(data.totalPages);
     }
 
+    /*
+     * Keep the latest load function available to the
+     * Supabase Realtime callback without recreating
+     * the subscription whenever the filters change.
+     */
+    const loadRef = useRef(load);
+
+    useEffect(() => {
+        loadRef.current = load;
+    });
+
     useEffect(() => {
         load(currentPage).catch(() =>
             navigate("/admin/login")
         );
     }, [currentPage, sortBy, sortOrder, search]);
 
+    /*
+     * Listen for new comments inserted into PostComment.
+     *
+     * The API remains unchanged. Supabase Realtime simply
+     * tells the admin page to reload the existing comment list.
+     */
     useEffect(() => {
-        const interval = setInterval(() => {
-            load(currentPage).catch(() =>
-                navigate("/admin/login")
-            );
-        }, REFRESH_INTERVAL);
+        const channel = supabase
+            .channel("admin-comments")
+            .on(
+                "postgres_changes",
+                {
+                    event: "INSERT",
+                    schema: "public",
+                    table: "CommentNotification",
+                },
+                () => {
+                    loadRef.current().catch(() =>
+                        navigate("/admin/login")
+                    );
+                }
+            )
+            .subscribe();
 
-        return () => clearInterval(interval);
-    }, [currentPage]);
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, []);
 
     function handleSort(column: CommentSortColumn) {
         if (sortBy === column) {

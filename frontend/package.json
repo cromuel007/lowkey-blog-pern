@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.23",
+    "@supabase/supabase-js": "^2.116.0",
     "@tailwindcss/vite": "^4.3.3",
     "@tiptap/extension-underline": "^3.31.3",
     "@tiptap/extensions": "^3.31.3",
