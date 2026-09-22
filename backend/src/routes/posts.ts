@@ -1271,6 +1271,18 @@ router.post("/:id/comments/:commentId/like", async (req, res) => {
             },
           },
         });
+
+        // Decrease the comment reaction count.
+        await prisma.postComment.update({
+          where: {
+            id: commentId,
+          },
+          data: {
+            likeCount: {
+              decrement: 1,
+            },
+          },
+        });
       } else {
         // Change the existing reaction.
         // The total reaction count stays the same.
@@ -1297,6 +1309,18 @@ router.post("/:id/comments/:commentId/like", async (req, res) => {
       await prisma.post.update({
         where: {
           id: postId,
+        },
+        data: {
+          likeCount: {
+            increment: 1,
+          },
+        },
+      });
+
+      // Increase the comment reaction count.
+      await prisma.postComment.update({
+        where: {
+          id: commentId,
         },
         data: {
           likeCount: {
