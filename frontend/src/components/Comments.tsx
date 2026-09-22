@@ -492,6 +492,9 @@ export default function Comments({
 
     const loadingDots = useLoadingDots();
 
+    const [reactionSummaryPopup, setReactionSummaryPopup] = useState<number | null>(null);
+    const reactionSummaryRefs = useRef<Map<number, HTMLElement>>(new Map());
+
     useEffect(() => {
         if (reactionPicker === null) {
             return;
@@ -522,6 +525,42 @@ export default function Comments({
             );
         };
     }, [reactionPicker]);
+
+    useEffect(() => {
+        if (reactionSummaryPopup === null) {
+            return;
+        }
+
+        const handleClickOutside = (
+            event: MouseEvent
+        ) => {
+            const currentElement =
+                reactionSummaryRefs.current.get(
+                    reactionSummaryPopup
+                );
+
+            if (
+                currentElement &&
+                !currentElement.contains(
+                    event.target as Node
+                )
+            ) {
+                setReactionSummaryPopup(null);
+            }
+        };
+
+        document.addEventListener(
+            "mousedown",
+            handleClickOutside
+        );
+
+        return () => {
+            document.removeEventListener(
+                "mousedown",
+                handleClickOutside
+            );
+        };
+    }, [reactionSummaryPopup]);
 
     useEffect(() => {
         let cancelled = false;
@@ -1364,98 +1403,133 @@ export default function Comments({
 
                                                         {/* Reaction summary — display only */}
                                                         {reactionSummary.length > 0 && (
-                                                            <span className="inline-flex items-center gap-0">
-                                                                <span className="text-muted">
-                                                                    {reactionSummary.reduce(
-                                                                        (total, reaction) =>
-                                                                            total + (comment.reactionCounts[reaction.type] ?? 0),
-                                                                        0
-                                                                    ) === 1
-                                                                        ? "React"
-                                                                        : "Reacts"}
-                                                                </span>
-
-                                                                <span className="inline-flex items-center gap-1">
-                                                                    {reactionSummary.map(
-                                                                        (reaction) => (
-                                                                            <span
-                                                                                key={reaction.type}
-                                                                                className={`inline-flex items-center gap-0 ${comment.userReaction ===
-                                                                                    reaction.type
-                                                                                    ? "text-[#d4a017]"
-                                                                                    : ""
-                                                                                    }`}
-                                                                                title={reaction.label}
-                                                                            >
-                                                                                <span className="relative inline-flex h-5 w-5 items-center justify-center">
-                                                                                    {showReactionBurst?.id ===
-                                                                                        comment.id &&
-                                                                                        showReactionBurst.type ===
-                                                                                        "comment" &&
-                                                                                        showReactionBurst.reaction ===
-                                                                                        reaction.type && (
-                                                                                            <span
-                                                                                                className="pointer-events-none absolute left-1/2 top-1/2 z-20 h-0 w-0"
-                                                                                                onAnimationEnd={() =>
-                                                                                                    setShowReactionBurst(
-                                                                                                        null
-                                                                                                    )
-                                                                                                }
-                                                                                            >
-                                                                                                {Array.from({
-                                                                                                    length: 10,
-                                                                                                }).map(
-                                                                                                    (_, index) => {
-                                                                                                        const reactionMeta =
-                                                                                                            getReactionMeta(
-                                                                                                                showReactionBurst.reaction
-                                                                                                            );
-
-                                                                                                        return (
-                                                                                                            <span
-                                                                                                                key={
-                                                                                                                    index
-                                                                                                                }
-                                                                                                                className={`like-reaction like-reaction-${index + 1}`}
-                                                                                                            >
-                                                                                                                {
-                                                                                                                    reactionMeta.emoji
-                                                                                                                }
-                                                                                                            </span>
-                                                                                                        );
-                                                                                                    }
-                                                                                                )}
-                                                                                            </span>
-                                                                                        )}
-
-                                                                                    <span className="text-xs leading-none cursor-pointer">
-                                                                                        <motion.span
-                                                                                            whileHover={{
-                                                                                                scale: 1.45,
-                                                                                            }}
-                                                                                            transition={{
-                                                                                                duration: 0.15,
-                                                                                            }}
-                                                                                            className="inline-block"
-                                                                                        >
-                                                                                            {reaction.emoji}
-                                                                                        </motion.span>
-                                                                                    </span>
-                                                                                </span>
-
-                                                                                <span className="text-xs leading-none">
-                                                                                    {
-                                                                                        comment
-                                                                                            .reactionCounts[
-                                                                                        reaction.type
-                                                                                        ]
-                                                                                    }
-                                                                                </span>
-                                                                            </span>
+                                                            <div
+                                                                ref={(element) => {
+                                                                    if (element) {
+                                                                        reactionSummaryRefs.current.set(
+                                                                            comment.id,
+                                                                            element
+                                                                        );
+                                                                    } else {
+                                                                        reactionSummaryRefs.current.delete(
+                                                                            comment.id
+                                                                        );
+                                                                    }
+                                                                }}
+                                                                className="relative inline-flex items-center"
+                                                            >
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() =>
+                                                                        setReactionSummaryPopup((previous) =>
+                                                                            previous === comment.id
+                                                                                ? null
+                                                                                : comment.id
                                                                         )
-                                                                    )}
-                                                                </span>
-                                                            </span>
+                                                                    }
+                                                                    className="inline-flex cursor-pointer items-center gap-1"
+                                                                >
+                                                                    <span className="text-muted">
+                                                                        {reactionSummary.reduce(
+                                                                            (total, reaction) =>
+                                                                                total +
+                                                                                (comment.reactionCounts[reaction.type] ?? 0),
+                                                                            0
+                                                                        ) === 1
+                                                                            ? "React"
+                                                                            : "Reacts"}
+                                                                    </span>
+
+                                                                    {/* Compact reaction summary */}
+                                                                    <span className="inline-flex items-center gap-0.5">
+                                                                        <span className="relative inline-flex items-center justify-center">
+                                                                            <motion.span
+                                                                                whileHover={{
+                                                                                    scale: 1.45,
+                                                                                }}
+                                                                                transition={{
+                                                                                    duration: 0.15,
+                                                                                }}
+                                                                                className="inline-block origin-center"
+                                                                            >
+                                                                                😊
+                                                                            </motion.span>
+
+                                                                            {/* Reaction burst */}
+                                                                            {showReactionBurst?.id === comment.id &&
+                                                                                showReactionBurst.type === "comment" && (
+                                                                                    <span
+                                                                                        className="pointer-events-none absolute left-1/2 top-1/2 z-50 h-0 w-0"
+                                                                                        onAnimationEnd={() =>
+                                                                                            setShowReactionBurst(null)
+                                                                                        }
+                                                                                    >
+                                                                                        {Array.from({ length: 10 }).map(
+                                                                                            (_, index) => {
+                                                                                                const reactionMeta =
+                                                                                                    getReactionMeta(
+                                                                                                        showReactionBurst.reaction
+                                                                                                    );
+
+                                                                                                return (
+                                                                                                    <span
+                                                                                                        key={index}
+                                                                                                        className={`like-reaction like-reaction-${index + 1}`}
+                                                                                                    >
+                                                                                                        {reactionMeta.emoji}
+                                                                                                    </span>
+                                                                                                );
+                                                                                            }
+                                                                                        )}
+                                                                                    </span>
+                                                                                )}
+                                                                        </span>
+
+                                                                        <span className="text-muted">
+                                                                            {reactionSummary.reduce(
+                                                                                (total, reaction) =>
+                                                                                    total +
+                                                                                    (comment.reactionCounts[
+                                                                                        reaction.type
+                                                                                    ] ?? 0),
+                                                                                0
+                                                                            )}
+                                                                        </span>
+                                                                    </span>
+                                                                </button>
+
+                                                                {/* Reaction counts */}
+                                                                {reactionSummaryPopup === comment.id && (
+                                                                    <div className="absolute bottom-full left-0 z-30 mb-2 flex items-center gap-0.5 rounded-full border border-line bg-surface px-1.5 py-1 shadow-lg">
+                                                                        {reactionSummary.map((reaction) => (
+                                                                            <div
+                                                                                key={reaction.type}
+                                                                                title={reaction.label}
+                                                                                className={`flex h-7 items-center gap-0.5 rounded-full px-1.5 text-xs leading-none ${comment.userReaction === reaction.type
+                                                                                    ? "bg-[#d4a017]/25 text-[#d4a017]"
+                                                                                    : "text-muted"
+                                                                                    }`}
+                                                                            >
+                                                                                <motion.span
+                                                                                    whileHover={{
+                                                                                        scale: 1.45,
+                                                                                    }}
+                                                                                    transition={{
+                                                                                        duration: 0.15,
+                                                                                    }}
+                                                                                    className="inline-flex origin-center cursor-pointer items-center justify-center leading-none"
+                                                                                >
+                                                                                    {reaction.emoji}
+                                                                                </motion.span>
+
+                                                                                <span>
+                                                                                    {comment.reactionCounts[reaction.type] ?? 0}
+                                                                                </span>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                )}
+                                                            </div>
                                                         )}
 
                                                         <button
@@ -1797,97 +1871,136 @@ export default function Comments({
 
                                                                                         {/* Reaction summary — display only */}
                                                                                         {replyReactionSummary.length > 0 && (
-                                                                                            <span className="inline-flex items-center gap-0">
-                                                                                                <span className="text-muted">
-                                                                                                    {replyReactionSummary.reduce(
-                                                                                                        (total, reaction) =>
-                                                                                                            total + (reply.reactionCounts[reaction.type] ?? 0),
-                                                                                                        0
-                                                                                                    ) === 1
-                                                                                                        ? "React"
-                                                                                                        : "Reacts"}
-                                                                                                </span>
-
-                                                                                                <span className="inline-flex items-center gap-1">
-                                                                                                    {replyReactionSummary.map(
-                                                                                                        (reaction) => (
-                                                                                                            <span
-                                                                                                                key={reaction.type}
-                                                                                                                className={`inline-flex items-center gap-0 ${reply.userReaction ===
-                                                                                                                    reaction.type
-                                                                                                                    ? "text-[#d4a017]"
-                                                                                                                    : ""
-                                                                                                                    }`}
-                                                                                                                title={reaction.label}
-                                                                                                            >
-                                                                                                                <span className="relative inline-flex h-5 w-5 items-center justify-center">
-                                                                                                                    {showReactionBurst?.id ===
-                                                                                                                        reply.id &&
-                                                                                                                        showReactionBurst.type ===
-                                                                                                                        "reply" &&
-                                                                                                                        showReactionBurst.reaction ===
-                                                                                                                        reaction.type && (
-                                                                                                                            <span
-                                                                                                                                className="pointer-events-none absolute left-1/2 top-1/2 z-20 h-0 w-0"
-                                                                                                                                onAnimationEnd={() =>
-                                                                                                                                    setShowReactionBurst(
-                                                                                                                                        null
-                                                                                                                                    )
-                                                                                                                                }
-                                                                                                                            >
-                                                                                                                                {Array.from({
-                                                                                                                                    length: 10,
-                                                                                                                                }).map(
-                                                                                                                                    (_, index) => {
-                                                                                                                                        const reactionMeta =
-                                                                                                                                            getReactionMeta(
-                                                                                                                                                showReactionBurst.reaction
-                                                                                                                                            );
-
-                                                                                                                                        return (
-                                                                                                                                            <span
-                                                                                                                                                key={
-                                                                                                                                                    index
-                                                                                                                                                }
-                                                                                                                                                className={`like-reaction like-reaction-${index + 1}`}
-                                                                                                                                            >
-                                                                                                                                                {
-                                                                                                                                                    reactionMeta.emoji
-                                                                                                                                                }
-                                                                                                                                            </span>
-                                                                                                                                        );
-                                                                                                                                    }
-                                                                                                                                )}
-                                                                                                                            </span>
-                                                                                                                        )}
-
-                                                                                                                    <span className="text-xs leading-none cursor-pointer">
-                                                                                                                        <motion.span
-                                                                                                                            whileHover={{
-                                                                                                                                scale: 1.45,
-                                                                                                                            }}
-                                                                                                                            transition={{
-                                                                                                                                duration: 0.15,
-                                                                                                                            }}
-                                                                                                                            className="inline-block"
-                                                                                                                        >
-                                                                                                                            {reaction.emoji}
-                                                                                                                        </motion.span>
-                                                                                                                    </span>
-                                                                                                                </span>
-
-                                                                                                                <span className="text-xs leading-none">
-                                                                                                                    {
-                                                                                                                        reply
-                                                                                                                            .reactionCounts[
-                                                                                                                        reaction.type
-                                                                                                                        ]
-                                                                                                                    }
-                                                                                                                </span>
-                                                                                                            </span>
+                                                                                            <span
+                                                                                                ref={(element) => {
+                                                                                                    if (element) {
+                                                                                                        reactionSummaryRefs.current.set(
+                                                                                                            reply.id,
+                                                                                                            element
+                                                                                                        );
+                                                                                                    } else {
+                                                                                                        reactionSummaryRefs.current.delete(
+                                                                                                            reply.id
+                                                                                                        );
+                                                                                                    }
+                                                                                                }}
+                                                                                                className="relative inline-flex items-center"
+                                                                                            >
+                                                                                                <button
+                                                                                                    type="button"
+                                                                                                    onClick={() =>
+                                                                                                        setReactionSummaryPopup((previous) =>
+                                                                                                            previous === reply.id
+                                                                                                                ? null
+                                                                                                                : reply.id
                                                                                                         )
-                                                                                                    )}
-                                                                                                </span>
+                                                                                                    }
+                                                                                                    className="inline-flex cursor-pointer items-center gap-1"
+                                                                                                >
+                                                                                                    <span className="text-muted">
+                                                                                                        {replyReactionSummary.reduce(
+                                                                                                            (total, reaction) =>
+                                                                                                                total +
+                                                                                                                (reply.reactionCounts[reaction.type] ?? 0),
+                                                                                                            0
+                                                                                                        ) === 1
+                                                                                                            ? "React"
+                                                                                                            : "Reacts"}
+                                                                                                    </span>
+
+                                                                                                    {/* Compact reaction summary */}
+                                                                                                    <span className="inline-flex items-center gap-0.5">
+                                                                                                        <span className="relative inline-flex items-center justify-center">
+                                                                                                            <motion.span
+                                                                                                                whileHover={{
+                                                                                                                    scale: 1.45,
+                                                                                                                }}
+                                                                                                                transition={{
+                                                                                                                    duration: 0.15,
+                                                                                                                }}
+                                                                                                                className="inline-block origin-center"
+                                                                                                            >
+                                                                                                                😊
+                                                                                                            </motion.span>
+
+                                                                                                            {/* Reaction burst */}
+                                                                                                            {showReactionBurst?.id === reply.id &&
+                                                                                                                showReactionBurst.type === "reply" && (
+                                                                                                                    <span
+                                                                                                                        className="pointer-events-none absolute left-1/2 top-1/2 z-50 h-0 w-0"
+                                                                                                                        onAnimationEnd={() =>
+                                                                                                                            setShowReactionBurst(null)
+                                                                                                                        }
+                                                                                                                    >
+                                                                                                                        {Array.from({ length: 10 }).map(
+                                                                                                                            (_, index) => {
+                                                                                                                                const reactionMeta =
+                                                                                                                                    getReactionMeta(
+                                                                                                                                        showReactionBurst.reaction
+                                                                                                                                    );
+
+                                                                                                                                return (
+                                                                                                                                    <span
+                                                                                                                                        key={index}
+                                                                                                                                        className={`like-reaction like-reaction-${index + 1}`}
+                                                                                                                                    >
+                                                                                                                                        {
+                                                                                                                                            reactionMeta.emoji
+                                                                                                                                        }
+                                                                                                                                    </span>
+                                                                                                                                );
+                                                                                                                            }
+                                                                                                                        )}
+                                                                                                                    </span>
+                                                                                                                )}
+                                                                                                        </span>
+
+                                                                                                        <span className="text-muted">
+                                                                                                            {replyReactionSummary.reduce(
+                                                                                                                (total, reaction) =>
+                                                                                                                    total +
+                                                                                                                    (reply.reactionCounts[
+                                                                                                                        reaction.type
+                                                                                                                    ] ?? 0),
+                                                                                                                0
+                                                                                                            )}
+                                                                                                        </span>
+                                                                                                    </span>
+                                                                                                </button>
+
+                                                                                                {/* Reaction counts */}
+                                                                                                {reactionSummaryPopup === reply.id && (
+                                                                                                    <div className="absolute bottom-full left-0 z-30 mb-2 flex items-center gap-0.5 rounded-full border border-line bg-surface px-1.5 py-1 shadow-lg">
+                                                                                                        {replyReactionSummary.map((reaction) => (
+                                                                                                            <div
+                                                                                                                key={reaction.type}
+                                                                                                                title={reaction.label}
+                                                                                                                className={`flex h-7 items-center gap-0.5 rounded-full px-1.5 text-xs leading-none ${reply.userReaction === reaction.type
+                                                                                                                        ? "bg-[#d4a017]/25 text-[#d4a017]"
+                                                                                                                        : "text-muted"
+                                                                                                                    }`}
+                                                                                                            >
+                                                                                                                <motion.span
+                                                                                                                    whileHover={{
+                                                                                                                        scale: 1.45,
+                                                                                                                    }}
+                                                                                                                    transition={{
+                                                                                                                        duration: 0.15,
+                                                                                                                    }}
+                                                                                                                    className="inline-flex origin-center cursor-pointer items-center justify-center leading-none"
+                                                                                                                >
+                                                                                                                    {reaction.emoji}
+                                                                                                                </motion.span>
+
+                                                                                                                <span>
+                                                                                                                    {reply.reactionCounts[
+                                                                                                                        reaction.type
+                                                                                                                    ] ?? 0}
+                                                                                                                </span>
+                                                                                                            </div>
+                                                                                                        ))}
+                                                                                                    </div>
+                                                                                                )}
                                                                                             </span>
                                                                                         )}
                                                                                     </div>
