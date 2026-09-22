@@ -1427,7 +1427,7 @@ export default function Comments({
                                                                                 : comment.id
                                                                         )
                                                                     }
-                                                                    className="inline-flex cursor-pointer items-center gap-1"
+                                                                    className="inline-flex cursor-pointer items-center gap-0.5"
                                                                 >
                                                                     <span className="text-muted">
                                                                         {reactionSummary.reduce(
@@ -1895,7 +1895,7 @@ export default function Comments({
                                                                                                                 : reply.id
                                                                                                         )
                                                                                                     }
-                                                                                                    className="inline-flex cursor-pointer items-center gap-1"
+                                                                                                    className="inline-flex cursor-pointer items-center gap-0.5"
                                                                                                 >
                                                                                                     <span className="text-muted">
                                                                                                         {replyReactionSummary.reduce(
