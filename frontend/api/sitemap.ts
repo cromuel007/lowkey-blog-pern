@@ -23,29 +23,36 @@ export default async function handler(
         return res.status(500).send("API_URL is not configured");
     }
 
+    const postsUrl = `${apiUrl.replace(/\/$/, "")}/api/posts`;
+
+    console.log("SITEMAP API URL:", postsUrl);
+
     try {
-        const response = await fetch(
-            `${apiUrl}/api/posts`
+        const response = await fetch(postsUrl);
+
+        console.log(
+            "SITEMAP RESPONSE:",
+            response.status,
+            response.statusText,
+            response.url
         );
 
         if (!response.ok) {
             const errorBody = await response.text();
 
             console.error(
-                "Posts API error:",
+                "SITEMAP API ERROR:",
                 response.status,
+                response.url,
                 errorBody
             );
 
-            return res
-                .status(response.status)
-                .send(
-                    `Failed to load posts: ${response.status} ${errorBody}`
-                );
+            return res.status(response.status).send(
+                `Failed to load posts: ${response.status} ${response.url} ${errorBody}`
+            );
         }
 
-        const posts: SitemapPost[] =
-            await response.json();
+        const posts: SitemapPost[] = await response.json();
 
         const urls: SitemapUrl[] = [
             {
