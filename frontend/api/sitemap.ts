@@ -25,14 +25,7 @@ export default async function handler(
 
     try {
         const response = await fetch(
-            `${apiUrl}/api/posts`,
-            {
-                headers: {
-                    Accept: "application/json",
-                    "User-Agent":
-                        "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
-                },
-            }
+            `${apiUrl}/api/posts`
         );
 
         if (!response.ok) {
