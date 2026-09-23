@@ -2,14 +2,21 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 
 const SITE_URL = "https://blog.tubbylab.com";
 
+type SitemapPost = {
+    slug: string;
+    updatedAt?: string | null;
+    publishedAt?: string | null;
+};
+
+type SitemapUrl = {
+    loc: string;
+    lastmod?: string | null;
+};
+
 export default async function handler(
     req: VercelRequest,
     res: VercelResponse
 ) {
-    if (req.method !== "GET") {
-        return res.status(405).send("Method Not Allowed");
-    }
-
     const apiUrl = process.env.API_URL;
 
     if (!apiUrl) {
@@ -22,26 +29,34 @@ export default async function handler(
         );
 
         if (!response.ok) {
+            const errorBody = await response.text();
+
+            console.error(
+                "Posts API error:",
+                response.status,
+                errorBody
+            );
+
             return res
                 .status(response.status)
-                .send("Failed to load posts");
+                .send(
+                    `Failed to load posts: ${response.status} ${errorBody}`
+                );
         }
 
-        const posts = await response.json();
+        const posts: SitemapPost[] =
+            await response.json();
 
-        const urls = [
+        const urls: SitemapUrl[] = [
             {
                 loc: SITE_URL,
             },
             {
                 loc: `${SITE_URL}/posts`,
             },
-            ...posts.map(
-                (post: {
-                    slug: string;
-                    updatedAt?: string | null;
-                    publishedAt?: string | null;
-                }) => ({
+            ...posts
+                .filter((post) => post.slug)
+                .map((post) => ({
                     loc: `${SITE_URL}/posts/${encodeURIComponent(
                         post.slug
                     )}`,
@@ -49,8 +64,7 @@ export default async function handler(
                         post.updatedAt ||
                         post.publishedAt ||
                         null,
-                })
-            ),
+                })),
         ];
 
         const escapeXml = (value: string) =>
@@ -89,10 +103,10 @@ ${urls
 
         return res.status(200).send(xml);
     } catch (error) {
-        console.error(error);
+        console.error("Sitemap error:", error);
 
         return res.status(500).send(
-            `Failed to load posts: ${
+            `Sitemap error: ${
                 error instanceof Error
                     ? error.message
                     : String(error)
