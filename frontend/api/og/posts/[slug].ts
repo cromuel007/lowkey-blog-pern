@@ -47,6 +47,9 @@ export default async function handler(
         // Fixed author - there is no author field in the database.
         const author = "Cromuel";
 
+        const authorUrl =
+            "https://tubbylab.com/";
+
         const publishedAt =
             post.publishedAt || null;
 
@@ -88,11 +91,13 @@ export default async function handler(
             author: {
                 "@type": "Person",
                 name: author,
+                url: authorUrl,
             },
 
             publisher: {
                 "@type": "Person",
                 name: author,
+                url: authorUrl,
             },
 
             mainEntityOfPage: {
@@ -149,31 +154,29 @@ export default async function handler(
         content="${escapeHtml(image)}"
     >
 
-    ${
-        publishedAt
-            ? `
+    ${publishedAt
+                ? `
     <meta
         property="article:published_time"
         content="${escapeHtml(publishedAt)}"
     >
     `
-            : ""
-    }
+                : ""
+            }
 
-    ${
-        modifiedAt
-            ? `
+    ${modifiedAt
+                ? `
     <meta
         property="article:modified_time"
         content="${escapeHtml(modifiedAt)}"
     >
     `
-            : ""
-    }
+                : ""
+            }
 
     <meta
         property="article:author"
-        content="${escapeHtml(author)}"
+        content="${escapeHtml(authorUrl)}"
     >
 
     <meta
@@ -209,15 +212,14 @@ export default async function handler(
             By ${escapeHtml(author)}
         </p>
 
-        ${
-            publishedAt
+        ${publishedAt
                 ? `
         <time datetime="${escapeHtml(publishedAt)}">
             Published ${escapeHtml(publishedAt)}
         </time>
         `
                 : ""
-        }
+            }
     </article>
 </body>
 </html>
