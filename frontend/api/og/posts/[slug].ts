@@ -44,7 +44,8 @@ export default async function handler(
             post.coverImageUrl ||
             "https://blog.tubbylab.com/og-image.png";
 
-        const author = post.authorName || "Cromuel";
+        // Fixed author - there is no author field in the database.
+        const author = "Cromuel";
 
         const publishedAt =
             post.publishedAt || null;
@@ -75,20 +76,25 @@ export default async function handler(
             description,
             image: [image],
             url: postUrl,
+
             ...(publishedAt && {
                 datePublished: publishedAt,
             }),
+
             ...(modifiedAt && {
                 dateModified: modifiedAt,
             }),
+
             author: {
                 "@type": "Person",
                 name: author,
             },
+
             publisher: {
                 "@type": "Person",
                 name: author,
             },
+
             mainEntityOfPage: {
                 "@type": "WebPage",
                 "@id": postUrl,
@@ -106,6 +112,11 @@ export default async function handler(
     <meta
         name="description"
         content="${escapeHtml(description)}"
+    >
+
+    <meta
+        name="author"
+        content="${escapeHtml(author)}"
     >
 
     <link
