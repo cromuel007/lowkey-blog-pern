@@ -44,6 +44,16 @@ export default async function handler(
             post.coverImageUrl ||
             "https://blog.tubbylab.com/og-image.png";
 
+        const author = post.authorName || "Cromuel";
+
+        const publishedAt =
+            post.publishedAt || null;
+
+        const modifiedAt =
+            post.updatedAt ||
+            post.publishedAt ||
+            null;
+
         const escapeHtml = (value: string) =>
             String(value)
                 .replace(/&/g, "&amp;")
@@ -51,6 +61,39 @@ export default async function handler(
                 .replace(/>/g, "&gt;")
                 .replace(/"/g, "&quot;")
                 .replace(/'/g, "&#039;");
+
+        const escapeJsonLd = (value: unknown) =>
+            JSON.stringify(value)
+                .replace(/</g, "\\u003c")
+                .replace(/>/g, "\\u003e")
+                .replace(/&/g, "\\u0026");
+
+        const jsonLd = {
+            "@context": "https://schema.org",
+            "@type": "BlogPosting",
+            headline: title,
+            description,
+            image: [image],
+            url: postUrl,
+            ...(publishedAt && {
+                datePublished: publishedAt,
+            }),
+            ...(modifiedAt && {
+                dateModified: modifiedAt,
+            }),
+            author: {
+                "@type": "Person",
+                name: author,
+            },
+            publisher: {
+                "@type": "Person",
+                name: author,
+            },
+            mainEntityOfPage: {
+                "@type": "WebPage",
+                "@id": postUrl,
+            },
+        };
 
         const html = `
 <!doctype html>
@@ -95,6 +138,33 @@ export default async function handler(
         content="${escapeHtml(image)}"
     >
 
+    ${
+        publishedAt
+            ? `
+    <meta
+        property="article:published_time"
+        content="${escapeHtml(publishedAt)}"
+    >
+    `
+            : ""
+    }
+
+    ${
+        modifiedAt
+            ? `
+    <meta
+        property="article:modified_time"
+        content="${escapeHtml(modifiedAt)}"
+    >
+    `
+            : ""
+    }
+
+    <meta
+        property="article:author"
+        content="${escapeHtml(author)}"
+    >
+
     <meta
         name="twitter:card"
         content="summary_large_image"
@@ -114,16 +184,43 @@ export default async function handler(
         name="twitter:image"
         content="${escapeHtml(image)}"
     >
+
+    <script type="application/ld+json">
+        ${escapeJsonLd(jsonLd)}
+    </script>
 </head>
 
 <body>
-    <h1>${escapeHtml(title)}</h1>
+    <article>
+        <h1>${escapeHtml(title)}</h1>
+
+        <p>
+            By ${escapeHtml(author)}
+        </p>
+
+        ${
+            publishedAt
+                ? `
+        <time datetime="${escapeHtml(publishedAt)}">
+            Published ${escapeHtml(publishedAt)}
+        </time>
+        `
+                : ""
+        }
+    </article>
 </body>
 </html>
 `;
 
-        res.setHeader("Cache-Control", "public, s-maxage=300, stale-while-revalidate=600");
-        res.setHeader("Content-Type", "text/html; charset=utf-8");
+        res.setHeader(
+            "Cache-Control",
+            "public, s-maxage=300, stale-while-revalidate=600"
+        );
+
+        res.setHeader(
+            "Content-Type",
+            "text/html; charset=utf-8"
+        );
 
         return res.status(200).send(html);
     } catch (error) {
@@ -132,3 +229,4 @@ export default async function handler(
         return res.status(500).send("Failed to load post");
     }
 }
+
