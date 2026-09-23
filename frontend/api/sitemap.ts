@@ -3,96 +3,131 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 const SITE_URL = "https://blog.tubbylab.com";
 
 type SitemapUrl = {
-  loc: string;
-  lastmod?: string | null;
+    loc: string;
+    lastmod?: string | null;
 };
 
 export default async function handler(
-  req: VercelRequest,
-  res: VercelResponse
+    req: VercelRequest,
+    res: VercelResponse
 ) {
-  if (req.method !== "GET") {
-    return res.status(405).send("Method Not Allowed");
-  }
-
-  const apiUrl = process.env.API_URL;
-
-  if (!apiUrl) {
-    return res.status(500).send("API_URL is not configured");
-  }
-
-  try {
-    const response = await fetch(
-      `${apiUrl.replace(/\/$/, "")}/api/posts`
-    );
-
-    if (!response.ok) {
-      return res
-        .status(response.status)
-        .send("Failed to load posts");
+    if (req.method !== "GET") {
+        return res.status(405).send("Method Not Allowed");
     }
 
-    const posts = await response.json();
+    const apiUrl = process.env.API_URL;
 
-    if (!Array.isArray(posts)) {
-      return res
-        .status(500)
-        .send("Invalid posts response");
+    if (!apiUrl) {
+        return res.status(500).send("API_URL is not configured");
     }
 
-    const urls: SitemapUrl[] = [
-      {
-        loc: SITE_URL,
-      },
-      {
-        loc: `${SITE_URL}/posts`,
-      },
-      ...posts.map((post) => ({
-        loc: `${SITE_URL}/posts/${post.slug}`,
-        lastmod: post.updatedAt || post.publishedAt || null,
-      })),
-    ];
+    const postsUrl =
+        `${apiUrl.replace(/\/$/, "")}/api/posts`;
 
-    const escapeXml = (value: string) =>
-      String(value)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&apos;");
+    console.log("Sitemap fetching:", postsUrl);
 
-    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+    try {
+        const response = await fetch(postsUrl);
+
+        console.log(
+            "Posts API response:",
+            response.status,
+            response.statusText
+        );
+
+        if (!response.ok) {
+            const errorBody = await response.text();
+
+            console.error(
+                "Posts API error:",
+                errorBody
+            );
+
+            return res
+                .status(500)
+                .send(
+                    `Failed to load posts: ${response.status} ${errorBody}`
+                );
+        }
+
+        const posts = await response.json();
+
+        if (!Array.isArray(posts)) {
+            console.error(
+                "Unexpected posts response:",
+                posts
+            );
+
+            return res
+                .status(500)
+                .send("Posts API did not return an array");
+        }
+
+        const urls: SitemapUrl[] = [
+            {
+                loc: SITE_URL,
+            },
+            {
+                loc: `${SITE_URL}/posts`,
+            },
+            ...posts.map((post) => ({
+                loc: `${SITE_URL}/posts/${post.slug}`,
+                lastmod:
+                    post.updatedAt ||
+                    post.publishedAt ||
+                    null,
+            })),
+        ];
+
+        const escapeXml = (value: string) =>
+            String(value)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&apos;");
+
+        const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${urls
-        .map(
-          ({ loc, lastmod }) => `
-    <url>
-        <loc>${escapeXml(loc)}</loc>${lastmod
-              ? `
+    .map(
+        ({ loc, lastmod }) => `    <url>
+        <loc>${escapeXml(loc)}</loc>${
+            lastmod
+                ? `
         <lastmod>${new Date(lastmod).toISOString()}</lastmod>`
-              : ""
-            }
+                : ""
+        }
     </url>`
-        )
-        .join("")}
+    )
+    .join("\n")}
 </urlset>`;
 
-    res.setHeader(
-      "Cache-Control",
-      "public, s-maxage=300, stale-while-revalidate=600"
-    );
+        res.setHeader(
+            "Cache-Control",
+            "public, s-maxage=300, stale-while-revalidate=600"
+        );
 
-    res.setHeader(
-      "Content-Type",
-      "application/xml; charset=utf-8"
-    );
+        res.setHeader(
+            "Content-Type",
+            "application/xml; charset=utf-8"
+        );
 
-    return res.status(200).send(xml);
-  } catch (error) {
-    console.error("Sitemap generation failed:", error);
+        return res.status(200).send(xml);
+    } catch (error) {
+        console.error(
+            "Sitemap fetch failed:",
+            error
+        );
 
-    return res
-      .status(500)
-      .send("Failed to generate sitemap");
-  }
+        return res
+            .status(500)
+            .send(
+                `Sitemap fetch failed: ${
+                    error instanceof Error
+                        ? error.message
+                        : String(error)
+                }`
+            );
+    }
 }
