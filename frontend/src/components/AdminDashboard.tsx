@@ -232,7 +232,7 @@ export default function AdminDashboard() {
                                         ease: "easeInOut",
                                     }}
                                 >
-                                    🤖
+                                🤖
                                 </motion.span>
                             </>
                         ) : (
@@ -251,7 +251,7 @@ export default function AdminDashboard() {
                                         ease: "easeInOut",
                                     }}
                                 >
-                                    🧠
+                                🧠
                                 </motion.span>
                             </>
                         )}
