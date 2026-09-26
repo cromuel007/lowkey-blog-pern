@@ -12,21 +12,11 @@ const ai = new GoogleGenAI({
 
 export async function generateGeminiContent(
   prompt: string,
-  useWebSearch = false,
 ): Promise<string> {
-  const response = await ai.interactions.create({
+  const response = await ai.models.generateContent({
     model: "gemini-3.8-flash",
-    input: prompt,
-    ...(useWebSearch
-      ? {
-          tools: [
-            {
-              type: "google_search",
-            },
-          ],
-        }
-      : {}),
+    contents: prompt,
   });
 
-  return response.output_text ?? "";
+  return response.text ?? "";
 }

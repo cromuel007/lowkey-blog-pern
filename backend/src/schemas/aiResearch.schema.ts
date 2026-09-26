@@ -4,10 +4,11 @@ export const researchItemSchema = z.object({
   title: z.string().min(1),
   source: z.string().min(1),
   url: z.url(),
-  publishedAt: z.iso.datetime(),
+  publishedAt: z.iso.datetime({ offset: true }),
   summary: z.string().min(1),
   whyItMatters: z.string().min(1),
   topic: z.string().min(1),
+  content: z.string().min(1),
 });
 
 export const researchResponseSchema = z.object({
