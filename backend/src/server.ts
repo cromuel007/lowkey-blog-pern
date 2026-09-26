@@ -8,7 +8,6 @@ import categoriesRouter from "./routes/categories.js";
 import tagsRouter from "./routes/tags.js";
 import adminsRouter from "./routes/admins.js";
 import aiRoutes from "./routes/ai.routes.js";
-// import aiTestRoutes from "./routes/aiTest.routes.js";
 
 const app = express();
 const port = Number(process.env.PORT || 3001);
@@ -30,9 +29,7 @@ app.use("/api/categories", categoriesRouter);
 app.use("/api/tags", tagsRouter);
 app.use("/api/admins", adminsRouter);
 app.use("/api/meta", metaRouter);
-
 app.use("/api/ai", aiRoutes);
-// app.use("/api/ai-test", aiTestRoutes);
 
 app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(error);
