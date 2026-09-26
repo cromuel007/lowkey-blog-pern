@@ -153,7 +153,7 @@ export default function AdminDashboard() {
                         to="/"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="mt-6 inline-flex items-center gap-2 rounded-lg border border-line bg-white px-5 py-3 text-sm font-semibold text-ink transition-colors hover:border-accent hover:text-accent"
+                        className="btn-primary mt-6"
                     >
                         View Blog
                         <ExternalLink className="h-4 w-4" />
