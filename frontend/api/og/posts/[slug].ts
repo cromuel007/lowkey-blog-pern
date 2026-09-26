@@ -38,11 +38,11 @@ export default async function handler(
             "";
 
         const postUrl =
-            `https://blog.tubbylab.com/posts/${post.slug}`;
+            `https://tubbylab.com/posts/${post.slug}`;
 
         const image =
             post.coverImageUrl ||
-            "https://blog.tubbylab.com/og-image.png";
+            "https://tubbylab.com/og-image.png";
 
         // Fixed author - there is no author field in the database.
         const author = "Cromuel";

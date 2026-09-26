@@ -77,11 +77,11 @@ export default function PostPage() {
                 "";
 
             const url =
-                `https://blog.tubbylab.com/posts/${currentPost.slug}`;
+                `https://tubbylab.com/posts/${currentPost.slug}`;
 
             const image =
                 currentPost.coverImageUrl ||
-                "https://blog.tubbylab.com/og-image.png";
+                "https://tubbylab.com/og-image.png";
 
             document.title = title;
 
@@ -221,7 +221,7 @@ export default function PostPage() {
             : null;
 
     const shareUrl =
-        `https://blog.tubbylab.com/posts/${post.slug}`;
+        `https://tubbylab.com/posts/${post.slug}`;
 
     const trackShare = async (
         platform: "facebook" | "linkedin" | "twitter"
