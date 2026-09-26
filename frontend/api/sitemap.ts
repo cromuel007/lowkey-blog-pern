@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
-const SITE_URL = "https://blog.tubbylab.com";
+const SITE_URL = "https://tubbylab.com";
 
 type SitemapPost = {
     slug: string;
