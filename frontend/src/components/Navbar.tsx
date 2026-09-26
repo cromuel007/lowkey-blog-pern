@@ -219,7 +219,7 @@ export default function Navbar({ onContactClick, onSearch }: NavbarProps) {
                 <li key={link}>
                   {link === 'Portfolio' ? (
                     <a
-                      href="https://tubbylab.com/"
+                      href="https://portfolio.tubbylab.com/"
                       onClick={() => setOpen(false)}
                       className="transition-colors hover:text-ink"
                     >
